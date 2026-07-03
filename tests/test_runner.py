@@ -20,7 +20,7 @@ SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from workflow_runtime import AGENT_ROLES as ROLES  # noqa: E402
-from workflow_runtime import artifact_record, runtime_event_relpath, sha256_file, utc_now  # noqa: E402
+from workflow_runtime import artifact_record, utc_now  # noqa: E402
 
 SOURCE = ROOT / "tests" / "fixtures" / "minimal_source.md"
 
@@ -204,12 +204,11 @@ def runtime_id_for(index: int) -> str:
     return f"019f27cd-0000-7000-8000-{index:012d}"
 
 
-def write_runtime_proof(workflow: Path, role: str, runtime_agent_id: str, proof_dir: Path) -> Path:
+def write_runtime_event(workflow: Path, role: str, runtime_agent_id: str, proof_dir: Path) -> Path:
     import json
 
     proof_dir.mkdir(parents=True, exist_ok=True)
     event_path = proof_dir / f"{role}.event.json"
-    proof_path = proof_dir / f"{role}.json"
     event_payload = {
         "schema_version": 1,
         "event_type": "codex.subagent.completed",
@@ -220,31 +219,13 @@ def write_runtime_proof(workflow: Path, role: str, runtime_agent_id: str, proof_
         "output_artifact": artifact_record(workflow / "agent_outputs" / f"{role}.md", workflow),
     }
     event_path.write_text(json.dumps(event_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    event_artifact = {
-        "path": runtime_event_relpath(role),
-        "sha256": sha256_file(event_path),
-        "size": event_path.stat().st_size,
-    }
-    payload = {
-        "schema_version": 1,
-        "proof_type": "codex.subagent.runtime_proof",
-        "runtime_provider": "codex-test-runtime",
-        "runtime_agent_id": runtime_agent_id,
-        "role": role,
-        "created_at": utc_now(),
-        "runtime_event_artifact": event_artifact,
-        "task_artifact": artifact_record(workflow / "agent_tasks" / f"{role}.md", workflow),
-        "output_artifact": artifact_record(workflow / "agent_outputs" / f"{role}.md", workflow),
-    }
-    proof_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return proof_path
+    return event_path
 
 
 def record_all_subagents_with_proofs(workflow: Path, proof_dir: Path) -> None:
     for index, role in enumerate(ROLES, 1):
         runtime_id = runtime_id_for(index)
-        proof_path = write_runtime_proof(workflow, role, runtime_id, proof_dir)
-        event_path = proof_dir / f"{role}.event.json"
+        event_path = write_runtime_event(workflow, role, runtime_id, proof_dir)
         run(
             [
                 sys.executable,
@@ -259,8 +240,6 @@ def record_all_subagents_with_proofs(workflow: Path, proof_dir: Path) -> None:
                 runtime_id,
                 "--runtime-event",
                 str(event_path),
-                "--runtime-proof",
-                str(proof_path),
             ],
             check=True,
         )
@@ -369,13 +348,12 @@ def test_claimed_subagent_with_uuid_runtime_id_without_proof_fails() -> None:
         assert "requires --runtime-event" in result.stderr
 
 
-def test_claimed_subagent_with_event_but_without_proof_fails() -> None:
+def test_subagent_with_event_generates_proof() -> None:
     with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
         root = Path(dirname)
         workflow = prepare(root)
         fill_workflow(workflow, agent_mode="subagent")
-        proof_path = write_runtime_proof(workflow, "strategist", runtime_id_for(1), root / "proofs")
-        event_path = proof_path.with_name("strategist.event.json")
+        event_path = write_runtime_event(workflow, "strategist", runtime_id_for(1), root / "proofs")
         result = run(
             [
                 sys.executable,
@@ -392,8 +370,9 @@ def test_claimed_subagent_with_event_but_without_proof_fails() -> None:
                 str(event_path),
             ],
         )
-        assert result.returncode != 0
-        assert "requires --runtime-proof" in result.stderr
+        assert result.returncode == 0
+        assert (workflow / "runtime_events" / "strategist.json").exists()
+        assert (workflow / "runtime_proofs" / "strategist.json").exists()
 
 
 def test_subagent_with_runtime_proof_passes() -> None:
@@ -443,7 +422,7 @@ if __name__ == "__main__":
         test_record_agent_rejects_frontmatter_mode_mismatch,
         test_record_agent_rejects_invalid_runtime_id_format,
         test_claimed_subagent_with_uuid_runtime_id_without_proof_fails,
-        test_claimed_subagent_with_event_but_without_proof_fails,
+        test_subagent_with_event_generates_proof,
         test_subagent_with_runtime_proof_passes,
         test_tampered_runtime_proof_after_record_fails,
         test_tampered_runtime_event_after_record_fails,

@@ -19,6 +19,7 @@ from workflow_runtime import (
     VALID_AGENT_MODES,
     append_event,
     artifact_record,
+    build_runtime_proof_payload,
     collect_artifacts,
     ensure_inside,
     load_state,
@@ -161,8 +162,6 @@ def command_record_agent(args: argparse.Namespace) -> int:
             raise SystemExit("subagent --runtime-agent-id must be a UUID-like runtime id")
         if not args.runtime_event:
             raise SystemExit("subagent mode requires --runtime-event from the host runtime")
-        if not args.runtime_proof:
-            raise SystemExit("subagent mode requires --runtime-proof from the host runtime")
         event_source = Path(args.runtime_event).resolve()
         if not event_source.exists():
             raise SystemExit(f"runtime event not found: {event_source}")
@@ -179,10 +178,14 @@ def command_record_agent(args: argparse.Namespace) -> int:
         write_json(event_target, event_payload)
         runtime_event_artifact = artifact_record(event_target, root)
 
-        proof_source = Path(args.runtime_proof).resolve()
-        if not proof_source.exists():
-            raise SystemExit(f"runtime proof not found: {proof_source}")
-        proof_payload = read_json(proof_source)
+        proof_payload = build_runtime_proof_payload(
+            role,
+            args.runtime_agent_id,
+            event_payload.get("runtime_provider", ""),
+            task_artifact,
+            output_artifact,
+            runtime_event_artifact,
+        )
         proof_errors = validate_runtime_proof_payload(
             proof_payload,
             role,
@@ -327,7 +330,6 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--mode", required=True, choices=VALID_AGENT_MODES)
     record.add_argument("--runtime-agent-id", default="")
     record.add_argument("--runtime-event", default="", help="Raw JSON event emitted by the host runtime for subagent mode")
-    record.add_argument("--runtime-proof", default="", help="JSON proof emitted by the host runtime for subagent mode")
     record.set_defaults(func=command_record_agent)
 
     check = sub.add_parser("check", help="Run checker with runner evidence required")

@@ -216,6 +216,28 @@ def validate_runtime_event_payload(
     return errors
 
 
+def build_runtime_proof_payload(
+    role: str,
+    runtime_agent_id: str,
+    runtime_provider: str,
+    task_artifact: dict[str, Any],
+    output_artifact: dict[str, Any],
+    runtime_event_artifact: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "proof_type": "codex.subagent.runtime_proof",
+        "proof_generated_by": "scripts/run_workflow.py",
+        "runtime_provider": runtime_provider,
+        "runtime_agent_id": runtime_agent_id,
+        "role": role,
+        "created_at": utc_now(),
+        "runtime_event_artifact": runtime_event_artifact,
+        "task_artifact": task_artifact,
+        "output_artifact": output_artifact,
+    }
+
+
 def validate_runtime_proof_payload(
     payload: dict[str, Any],
     role: str,
@@ -229,6 +251,8 @@ def validate_runtime_proof_payload(
         errors.append(f"runtime proof for {role} has invalid schema_version")
     if payload.get("proof_type") != "codex.subagent.runtime_proof":
         errors.append(f"runtime proof for {role} has invalid proof_type")
+    if payload.get("proof_generated_by") != "scripts/run_workflow.py":
+        errors.append(f"runtime proof for {role} has invalid proof_generated_by")
     if payload.get("role") != role:
         errors.append(f"runtime proof role mismatch for {role}")
     if payload.get("runtime_agent_id") != runtime_agent_id:

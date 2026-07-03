@@ -2,7 +2,7 @@
 
 Use this reference when a real subagent/expert produced an `agent_outputs/<role>.md` file.
 
-The host runtime, not the article writer, should provide the raw event and proof data. The proof binds one expert role to:
+The host runtime, not the article writer, should provide the raw event data. The runner generates the proof from that event and the current workflow artifacts. The proof binds one expert role to:
 
 - the runtime agent id,
 - the exact agent task artifact,
@@ -43,15 +43,14 @@ Save one proof file per subagent role:
 runtime_proofs/<role>.json
 ```
 
-The runner can copy an external proof into this location when recording:
+The runner creates this file when recording a subagent output:
 
 ```bash
 python3 scripts/run_workflow.py record-agent <workflow-dir> \
   --role <role> \
   --mode subagent \
   --runtime-agent-id <agent-id> \
-  --runtime-event <event.json> \
-  --runtime-proof <proof.json>
+  --runtime-event <event.json>
 ```
 
 ## Proof Schema
@@ -60,6 +59,7 @@ python3 scripts/run_workflow.py record-agent <workflow-dir> \
 {
   "schema_version": 1,
   "proof_type": "codex.subagent.runtime_proof",
+  "proof_generated_by": "scripts/run_workflow.py",
   "runtime_provider": "codex",
   "runtime_agent_id": "019f27cd-0000-7000-8000-000000000001",
   "role": "strategist",
