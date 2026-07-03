@@ -37,6 +37,12 @@ Use this Skill when you want to:
 
 ## Quick Start
 
+Download the packaged Skill from the latest release:
+
+https://github.com/xuanqing-95/professional-writing-assistant/releases/latest
+
+Or run from the source checkout:
+
 ```bash
 python3 scripts/run_article_workflow.py \
   --source path/to/source.md \
@@ -60,4 +66,3 @@ Only publish or share the final article after the checker passes.
 - Prefer light edits when the user wants to keep the original meaning closely.
 - Use tables sparingly in public articles.
 - Keep internal workflow notes out of the publish-ready body.
-
