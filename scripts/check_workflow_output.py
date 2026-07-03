@@ -10,9 +10,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+from workflow_runtime import (
+    RUNTIME_AGENT_ID_RE,
+    VALID_AGENT_MODES,
+    read_agent_frontmatter,
+    sha256_file,
+    validate_log_chain,
+)
+
 
 PLACEHOLDER_RE = re.compile(r"<!-- REQUIRED:.*?-->", re.DOTALL)
-FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
 IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]+\)")
 INTERNAL_PUBLISH_SECTIONS = [
     "## Title Options",
@@ -28,9 +35,88 @@ FIDELITY_PASS_RE = re.compile(r"\bpass\b|通过|无实质语义漂移", re.IGNOR
 FIDELITY_BLOCK_RE = re.compile(r"needs revision|blocked|不通过|需要修订|待作者确认", re.IGNORECASE)
 
 
+def read_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def read_log_events(path: Path) -> list[dict]:
+    events = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        event = json.loads(line)
+        event["_line"] = line_number
+        events.append(event)
+    return events
+
+
+def validate_runner_evidence(root: Path, agent_modes: dict[str, str]) -> list[str]:
+    errors: list[str] = []
+    state_path = root / "run_state.json"
+    log_path = root / "logs" / "run_log.jsonl"
+
+    if not state_path.exists():
+        return ["missing runner state: run_state.json"]
+    if not log_path.exists():
+        return ["missing runner log: logs/run_log.jsonl"]
+
+    state = read_json(state_path)
+    events = read_log_events(log_path)
+    errors.extend(validate_log_chain(root))
+
+    if not any(event.get("event_type") == "run_prepared" for event in events):
+        errors.append("runner log missing run_prepared event")
+
+    source_record = state.get("source_artifact") or {}
+    source_path = root / source_record.get("path", "")
+    if source_record and source_path.exists():
+        if sha256_file(source_path) != source_record.get("sha256"):
+            errors.append("00_source.md hash does not match run_state source_artifact")
+
+    recorded_outputs = state.get("agent_outputs") or {}
+    output_events = [
+        event for event in events if event.get("event_type") == "agent_output_recorded"
+    ]
+    for role, declared_mode in agent_modes.items():
+        output_path = root / "agent_outputs" / f"{role}.md"
+        output_hash = sha256_file(output_path)
+        record = recorded_outputs.get(role)
+        if not record:
+            errors.append(f"runner has no recorded agent output for {role}")
+            continue
+        if record.get("mode") != declared_mode:
+            errors.append(
+                f"agent output mode mismatch for {role}: frontmatter={declared_mode}, runner={record.get('mode')}"
+            )
+        if record.get("output_artifact", {}).get("sha256") != output_hash:
+            errors.append(f"agent output hash mismatch for {role}")
+        matching_events = [
+            event
+            for event in output_events
+            if event.get("role") == role
+            and event.get("mode") == declared_mode
+            and event.get("output_artifact", {}).get("sha256") == output_hash
+        ]
+        if not matching_events:
+            errors.append(f"runner log missing matching agent_output_recorded event for {role}")
+        if declared_mode == "subagent" and not record.get("runtime_agent_id"):
+            errors.append(f"subagent output for {role} has no runtime_agent_id")
+        if declared_mode == "subagent" and record.get("runtime_agent_id") and not RUNTIME_AGENT_ID_RE.match(
+            record.get("runtime_agent_id", "")
+        ):
+            errors.append(f"subagent output for {role} has invalid runtime_agent_id format")
+
+    return errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check completed article workflow packet")
     parser.add_argument("workflow_dir", help="Workflow directory created by run_article_workflow.py")
+    parser.add_argument(
+        "--require-runner",
+        action="store_true",
+        help="Require run_state.json and logs/run_log.jsonl provenance evidence",
+    )
     args = parser.parse_args()
 
     root = Path(args.workflow_dir).resolve()
@@ -42,6 +128,7 @@ def main() -> int:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     required_files = manifest.get("required_files", [])
     errors: list[str] = []
+    agent_modes: dict[str, str] = {}
 
     for rel in required_files:
         path = root / rel
@@ -52,15 +139,28 @@ def main() -> int:
         if rel.endswith(".md") and PLACEHOLDER_RE.search(text):
             errors.append(f"unfilled placeholders in {rel}")
         if rel.startswith("agent_outputs/") and rel.endswith(".md"):
-            match = FRONTMATTER_RE.match(text)
-            if not match:
+            frontmatter = read_agent_frontmatter(path)
+            if not frontmatter:
                 errors.append(f"missing frontmatter in {rel}")
             else:
-                frontmatter = match.group(1)
-                if "mode: subagent" not in frontmatter and "mode: simulated" not in frontmatter:
+                expected_agent = Path(rel).stem
+                declared_agent = frontmatter.get("agent")
+                if declared_agent != expected_agent:
+                    errors.append(
+                        f"agent frontmatter mismatch in {rel}: expected {expected_agent}, got {declared_agent or '(missing)'}"
+                    )
+                mode = frontmatter.get("mode")
+                if not mode:
                     errors.append(f"missing mode provenance in {rel}")
-                if "mode: simulated" in frontmatter:
+                elif mode not in VALID_AGENT_MODES:
+                    errors.append(f"invalid mode provenance in {rel}: {mode}")
+                else:
+                    agent_modes[Path(rel).stem] = mode
+                if mode == "simulated":
                     print(f"WARN simulated expert output: {rel}")
+
+    if args.require_runner or (root / "run_state.json").exists():
+        errors.extend(validate_runner_evidence(root, agent_modes))
 
     final_path = root / "09_final_article.md"
     source_image_count = int(manifest.get("image_count") or 0)

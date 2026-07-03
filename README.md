@@ -44,20 +44,48 @@ https://github.com/xuanqing-95/professional-writing-assistant/releases/latest
 Or run from the source checkout:
 
 ```bash
-python3 scripts/run_article_workflow.py \
+python3 scripts/run_workflow.py prepare \
   --source path/to/source.md \
   --out path/to/workflow-dir \
   --mode rewrite \
   --platform wechat
 ```
 
-Then complete the generated workflow files and run:
+Then complete the generated workflow files. After writing each agent output, record it:
 
 ```bash
-python3 scripts/check_workflow_output.py path/to/workflow-dir
+python3 scripts/run_workflow.py record-agent path/to/workflow-dir \
+  --role fidelity_reviewer \
+  --mode simulated
 ```
 
-Only publish or share the final article after the checker passes.
+Use `--mode subagent --runtime-agent-id <agent-id>` when a real subagent produced the output.
+Do not invent this id manually. If the runtime cannot provide a real UUID-like agent id, use `--mode simulated`.
+
+Check and finalize:
+
+```bash
+python3 scripts/run_workflow.py check path/to/workflow-dir
+python3 scripts/run_workflow.py finalize path/to/workflow-dir
+```
+
+Only publish or share the final article after finalize passes.
+
+## Runner Evidence
+
+The runner writes:
+
+- `run_state.json`: current workflow state and recorded agent outputs.
+- `logs/run_log.jsonl`: append-only event log with hash chaining.
+- `gate_result.json`: final checker result after `check` or `finalize`.
+
+`mode: subagent` in an agent output is not trusted by itself. The checker requires matching runner evidence and a runtime agent id.
+
+Current trust levels:
+
+- `simulated`: recorded and reproducible, but not independent expert execution.
+- `subagent`: requires matching runner evidence and a UUID-like runtime agent id.
+- The local runner is not a cryptographic audit service. It catches missing records, mode mismatches, hash changes, source changes, and simple fake ids; strong proof still requires the host runtime to write signed or otherwise verifiable subagent execution records.
 
 ## Design Principles
 

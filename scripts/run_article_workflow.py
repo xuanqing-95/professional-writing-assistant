@@ -322,6 +322,7 @@ mode: simulated
 ```
 
 Do not label simulated work as subagent work.
+Subagent mode must later be recorded with a runtime-provided UUID-like agent id.
 """,
         )
         write(
@@ -705,6 +706,7 @@ This review protects the original meaning. A more polished article is not accept
 - [ ] Read all role files in agents/.
 - [ ] Create or use agent_tasks/*.md.
 - [ ] Fill agent_outputs/*.md with `mode: subagent` or `mode: simulated`.
+- [ ] Record every agent output with `scripts/run_workflow.py record-agent`.
 - [ ] Complete 01 intake diagnosis.
 - [ ] Complete 02 strategy brief.
 - [ ] Complete 03 interview gaps.
@@ -722,7 +724,8 @@ This review protects the original meaning. A more polished article is not accept
 - [ ] Verify final_publish_article.md does not include internal workflow notes.
 - [ ] Run scripts/check_author_voice.py on 00_source.md and final_publish_article.md, with 04a_author_voice_profile.md when completed.
 - [ ] Run scripts/check_article_readability.py on final_publish_article.md.
-- [ ] Run scripts/check_workflow_output.py on this directory.
+- [ ] Run scripts/run_workflow.py check on this directory.
+- [ ] Run scripts/run_workflow.py finalize on this directory before delivery.
 """,
     )
 

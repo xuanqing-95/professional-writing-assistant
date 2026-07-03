@@ -51,23 +51,41 @@ For **Rewrite** and **Full package** requests, do not jump directly to the final
 2. Run:
 
    ```bash
-   python3 scripts/run_article_workflow.py --source <source.md> --out <workflow-dir> --mode rewrite --platform <platform>
+   python3 scripts/run_workflow.py prepare --source <source.md> --out <workflow-dir> --mode rewrite --platform <platform>
    ```
 
-3. If the source contains images, read and complete `00_media_manifest.md` before rewriting. Preserve source image links, visible captions, and proof value. Move images to the new section where they best support the argument; do not drop an image unless `00_media_manifest.md` records a concrete reason.
-4. Read and complete `00_source_claim_map.md` before planning the rewrite. This locks non-negotiable facts, core claims, causal logic, boundaries, allowed changes, and forbidden changes.
-5. Read `00_author_voice_seed.md` before author-voice work. It is generated from the current source only and exists to prevent importing style from examples or prior users.
-6. Fill every generated file in order from `01_intake_diagnosis.md` through `09_final_article.md`, including `04a_author_voice_profile.md`, `04b_narrative_review.md`, and `07b_source_fidelity_review.md`, then create `final_publish_article.md` as the clean publish-ready body.
-7. For each file in `agent_tasks/`, either:
+3. Treat `run_state.json` and `logs/run_log.jsonl` as the execution record. Do not claim a step was completed unless it has a recorded artifact or agent-output event.
+4. If the source contains images, read and complete `00_media_manifest.md` before rewriting. Preserve source image links, visible captions, and proof value. Move images to the new section where they best support the argument; do not drop an image unless `00_media_manifest.md` records a concrete reason.
+5. Read and complete `00_source_claim_map.md` before planning the rewrite. This locks non-negotiable facts, core claims, causal logic, boundaries, allowed changes, and forbidden changes.
+6. Read `00_author_voice_seed.md` before author-voice work. It is generated from the current source only and exists to prevent importing style from examples or prior users.
+7. Fill every generated file in order from `01_intake_diagnosis.md` through `09_final_article.md`, including `04a_author_voice_profile.md`, `04b_narrative_review.md`, and `07b_source_fidelity_review.md`, then create `final_publish_article.md` as the clean publish-ready body.
+8. For each file in `agent_tasks/`, either:
    - spawn a real subagent/expert when the runtime supports it, then paste its output into the matching `agent_outputs/` file with `mode: subagent`; or
    - fill the output yourself only when subagents are unavailable, with `mode: simulated`.
-8. Check completion:
+9. Record each agent output after it is written:
 
    ```bash
-   python3 scripts/check_workflow_output.py <workflow-dir>
+   python3 scripts/run_workflow.py record-agent <workflow-dir> --role <role> --mode simulated
    ```
 
-9. Only then provide the final response. If the checker fails, complete the missing artifacts first. If the checker warns about simulated expert output, disclose that in the final response.
+   If a real subagent was used, pass its runtime id:
+
+   ```bash
+   python3 scripts/run_workflow.py record-agent <workflow-dir> --role <role> --mode subagent --runtime-agent-id <agent-id>
+   ```
+
+   Do not hand-write or invent a subagent id. If the runtime cannot provide a real UUID-like agent id, use `mode: simulated`. `simulated` output may still be useful, but it must be disclosed as simulated review, not as independent expert execution.
+
+10. Check and finalize with Runner gates:
+
+   ```bash
+   python3 scripts/run_workflow.py check <workflow-dir>
+   python3 scripts/run_workflow.py finalize <workflow-dir>
+   ```
+
+11. Only then provide the final response. If the checker fails, complete the missing artifacts first. If the checker warns about simulated expert output, disclose that in the final response.
+
+Trust boundary: the local runner verifies workflow artifacts, hashes, modes, and UUID-like runtime ids. It can catch missing steps and ordinary tampering, but it is not a cryptographic audit system. Strong proof of real subagent execution requires the host runtime to automatically provide the subagent id and execution record.
 
 In the final response, summarize the workflow directory and show this compact working trail before the final article:
 
@@ -203,6 +221,13 @@ For Rewrite and Full package tasks, the workflow is file-backed. The generated w
 
 For Rewrite and Full package requests, run a multi-role review before finalizing. Before drafting, read the relevant role files in `agents/` and the matching output template in `output_templates/`. The workflow packet has `agent_tasks/` prompts and `agent_outputs/` files for each required expert. When subagents are available and the task is substantial, use the role files as independent passes and paste their conclusions into the packet with `mode: subagent`. Otherwise simulate the same roles internally and mark `mode: simulated`. Do not omit the review or mislabel simulated work as real subagent work.
 
+Use this provenance vocabulary consistently:
+
+- `mode: subagent`: produced by a real spawned expert/subagent, recorded with a runtime-provided UUID-like agent id.
+- `mode: simulated`: produced by the main agent following the role instructions because no subagent runtime was available.
+
+Never upgrade simulated review to subagent review after the fact.
+
 - `agents/strategist.md`: reader, promise, thesis, angle.
 - `agents/interviewer.md`: missing scenes, proof, conflict, constraints.
 - `agents/author_voice_analyst.md`: author voice DNA, original flavor, voice migration rules, anti-voice risks.
@@ -227,6 +252,8 @@ For Rewrite and Full package requests, run a multi-role review before finalizing
 - `references/examples_and_templates.md`: openings, titles, section headings, method components, endings.
 - `output_templates/`: ready formats for review reports, rewrite plans, and final article packages.
 - `scripts/run_article_workflow.py`: creates the required workflow packet from a Markdown source draft.
+- `scripts/run_workflow.py`: auditable Runner that prepares workflow packets, records agent outputs, writes `run_state.json`, appends `logs/run_log.jsonl`, and blocks finalization unless checks pass.
+- `scripts/workflow_runtime.py`: shared hash, event-log, and state helpers for Runner evidence.
 - `scripts/extract_author_voice.py`: extracts a source-local voice seed so author style comes from the current source, not examples or prior users.
 - `scripts/check_workflow_output.py`: validates that all required packet files are filled before delivery.
 - `scripts/check_author_voice.py`: validates that the rewritten article keeps first-person presence, source signature markers, and avoids generic opening/platform phrases.
@@ -237,6 +264,7 @@ For Rewrite and Full package requests, run a multi-role review before finalizing
 - `04a_author_voice_profile.md` inside a workflow packet: source-author voice fingerprint and migration rules. This must be completed before structural rewriting.
 - `07b_source_fidelity_review.md` inside a workflow packet: pass/fail review for whether the rewrite still means what the source meant.
 - `final_publish_article.md` inside a workflow packet: clean publish-ready article body only. It must not include workflow notes or internal headings.
+- `run_state.json` and `logs/run_log.jsonl` inside a workflow packet: Runner evidence. `mode: subagent` in Markdown is not trusted unless a matching Runner event and runtime agent id exist.
 - `evals/`: realistic prompts and grading criteria for validating the skill.
 
 ## Output Rules
