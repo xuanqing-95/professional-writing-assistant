@@ -752,6 +752,57 @@ def test_claude_code_adapter_with_supervisor_strict_finalize_passes() -> None:
         assert "Finalized workflow" in result.stdout
 
 
+def test_full_workflow_orchestrator_with_fake_model_finalizes() -> None:
+    with tempfile.TemporaryDirectory(prefix="pwa-full-run-test-") as dirname:
+        workflow = Path(dirname) / "workflow"
+        result = run(
+            [
+                sys.executable,
+                "scripts/run_full_workflow.py",
+                "--source",
+                str(SOURCE),
+                "--out",
+                str(workflow),
+                "--model-command",
+                f"{sys.executable} tests/fixtures/fake_full_workflow_model.py",
+                "--force",
+            ]
+        )
+        assert result.returncode == 0
+        assert "Finalized workflow" in result.stdout
+        assert (workflow / "final_publish_article.md").exists()
+        assert (workflow / "gate_result.json").exists()
+
+
+def test_full_workflow_orchestrator_with_signed_host_agents_strict_finalizes() -> None:
+    with tempfile.TemporaryDirectory(prefix="pwa-full-strict-test-") as dirname:
+        workflow = Path(dirname) / "workflow"
+        result = run(
+            [
+                sys.executable,
+                "scripts/run_full_workflow.py",
+                "--source",
+                str(SOURCE),
+                "--out",
+                str(workflow),
+                "--model-command",
+                f"{sys.executable} tests/fixtures/fake_full_workflow_model.py",
+                "--agent-command",
+                host_subagent_command(sign=True),
+                "--runtime-provider",
+                "fake-host-runtime",
+                "--require-signature",
+                "--require-signed-runtime-events",
+                "--force",
+            ],
+            env={"PWA_RUNTIME_SIGNING_KEY": SIGNING_KEY},
+        )
+        assert result.returncode == 0
+        assert "Finalized workflow" in result.stdout
+        assert (workflow / "runtime_raw_events" / "strategist.json").exists()
+        assert (workflow / "runtime_proofs" / "strategist.json").exists()
+
+
 def test_tampered_runtime_proof_after_record_fails() -> None:
     with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
         root = Path(dirname)
@@ -842,6 +893,8 @@ if __name__ == "__main__":
         test_host_supervisor_with_cli_adapter_strict_finalize_passes,
         test_claude_code_adapter_doctor_accepts_compatible_help,
         test_claude_code_adapter_with_supervisor_strict_finalize_passes,
+        test_full_workflow_orchestrator_with_fake_model_finalizes,
+        test_full_workflow_orchestrator_with_signed_host_agents_strict_finalizes,
         test_tampered_runtime_proof_after_record_fails,
         test_tampered_runtime_event_after_record_fails,
         test_tampered_raw_runtime_event_after_record_fails,

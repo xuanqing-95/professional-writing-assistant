@@ -54,6 +54,14 @@ For **Rewrite** and **Full package** requests, do not jump directly to the final
    python3 scripts/run_workflow.py prepare --source <source.md> --out <workflow-dir> --mode rewrite --platform <platform>
    ```
 
+   If a model CLI is available and the user wants an end-to-end run, prefer:
+
+   ```bash
+   python3 scripts/run_full_workflow.py --source <source.md> --out <workflow-dir> --model-command "<model-cli-command>" --platform <platform> --force
+   ```
+
+   This executes the full packet, records expert outputs as `simulated` unless a real `--agent-command` is supplied, runs gates, and finalizes. Continue with the manual packet steps only when you need direct editorial control or the end-to-end runner fails.
+
 3. Treat `run_state.json` and `logs/run_log.jsonl` as the execution record. Do not claim a step was completed unless it has a recorded artifact or agent-output event.
 4. If the source contains images, read and complete `00_media_manifest.md` before rewriting. Preserve source image links, visible captions, and proof value. Move images to the new section where they best support the argument; do not drop an image unless `00_media_manifest.md` records a concrete reason.
 5. Read and complete `00_source_claim_map.md` before planning the rewrite. This locks non-negotiable facts, core claims, causal logic, boundaries, allowed changes, and forbidden changes.
@@ -250,6 +258,7 @@ Never upgrade simulated review to subagent review after the fact.
 - `scripts/cli_subagent_command.py`: wraps a stdin/stdout model CLI as a host subagent command that writes signed raw events and agent output files.
 - `scripts/claude_code_subagent_command.py`: Claude Code CLI-specific host command adapter with a `doctor` compatibility check.
 - `scripts/pwa_demo.py`: creates and finalizes a local simulated quickstart workflow from `examples/quickstart-source.md`.
+- `scripts/run_full_workflow.py`: runs prepare -> expert outputs -> packet artifacts -> gates -> finalize with a stdin/stdout model CLI.
 - `scripts/workflow_runtime.py`: shared hash, event-log, and state helpers for Runner evidence.
 - `scripts/extract_author_voice.py`: extracts a source-local voice seed so author style comes from the current source, not examples or prior users.
 - `scripts/check_workflow_output.py`: validates that all required packet files are filled before delivery.

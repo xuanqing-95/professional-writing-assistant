@@ -33,6 +33,7 @@ Use this Skill when you want to:
 - `scripts/run_article_workflow.py`: creates the workflow packet.
 - `scripts/run_workflow.py`: prepares, records, checks, and finalizes auditable workflow runs.
 - `scripts/pwa_demo.py`: runs a complete local simulated quickstart workflow.
+- `scripts/run_full_workflow.py`: runs a full source-to-finalized-workflow pass with a model CLI.
 - `scripts/run_host_subagents.py`: runs host-provided subagent commands and records signed evidence.
 - `scripts/cli_subagent_command.py`: wraps a stdin/stdout model CLI as a host subagent command.
 - `scripts/claude_code_subagent_command.py`: wraps Claude Code CLI as a signed host subagent command.
@@ -76,6 +77,19 @@ python3 scripts/run_workflow.py record-agent path/to/workflow-dir \
   --role fidelity_reviewer \
   --mode simulated
 ```
+
+If you have a model CLI that reads prompts from stdin and prints Markdown to stdout, use the end-to-end runner instead:
+
+```bash
+python3 scripts/run_full_workflow.py \
+  --source path/to/source.md \
+  --out path/to/workflow-dir \
+  --model-command "<model-cli-command>" \
+  --platform wechat \
+  --force
+```
+
+This prepares the workflow, fills all packet artifacts, records expert outputs as `mode: simulated` unless `--agent-command` is provided, runs all gates, and finalizes the workflow.
 
 ### Path 3: strict real-subagent workflow
 
