@@ -34,6 +34,7 @@ Use this Skill when you want to:
 - `scripts/run_workflow.py`: prepares, records, checks, and finalizes auditable workflow runs.
 - `scripts/run_host_subagents.py`: runs host-provided subagent commands and records signed evidence.
 - `scripts/cli_subagent_command.py`: wraps a stdin/stdout model CLI as a host subagent command.
+- `scripts/claude_code_subagent_command.py`: wraps Claude Code CLI as a signed host subagent command.
 - `scripts/check_workflow_output.py`: validates the workflow before delivery.
 - `scripts/check_author_voice.py`: checks whether the rewrite preserves the author's voice.
 - `scripts/check_article_readability.py`: checks whether the publish body reads like an article instead of a work note.
@@ -117,6 +118,19 @@ python3 scripts/cli_subagent_command.py \
   --raw-event '{raw_event}' \
   --command '<model-cli-command>' \
   --sign
+```
+
+For Claude Code CLI specifically:
+
+```bash
+python3 scripts/claude_code_subagent_command.py doctor
+
+PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
+  python3 scripts/run_host_subagents.py path/to/workflow-dir \
+    --command "python3 scripts/claude_code_subagent_command.py run --role {role} --task '{task}' --output '{output}' --raw-event '{raw_event}' --sign --bare --model sonnet" \
+    --runtime-provider claude-code-cli \
+    --require-signature \
+    --finalize
 ```
 
 Check and finalize:

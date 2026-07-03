@@ -671,6 +671,51 @@ def test_host_supervisor_with_cli_adapter_strict_finalize_passes() -> None:
         assert "Finalized workflow" in result.stdout
 
 
+def claude_adapter_command() -> str:
+    return (
+        f"{sys.executable} scripts/claude_code_subagent_command.py run "
+        "--role {role} --task {task} --output {output} --raw-event {raw_event} "
+        f"--claude-command '{sys.executable} tests/fixtures/fake_cli_model.py' --sign"
+    )
+
+
+def test_claude_code_adapter_doctor_accepts_compatible_help() -> None:
+    result = run(
+        [
+            sys.executable,
+            "scripts/claude_code_subagent_command.py",
+            "doctor",
+            "--claude-command",
+            f"{sys.executable} tests/fixtures/fake_claude_help.py",
+        ]
+    )
+    assert result.returncode == 0
+    assert "looks compatible" in result.stdout
+
+
+def test_claude_code_adapter_with_supervisor_strict_finalize_passes() -> None:
+    with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
+        root = Path(dirname)
+        workflow = prepare(root)
+        fill_workflow(workflow, agent_mode="subagent")
+        result = run(
+            [
+                sys.executable,
+                "scripts/run_host_subagents.py",
+                str(workflow),
+                "--command",
+                claude_adapter_command(),
+                "--runtime-provider",
+                "claude-code-cli-test-runtime",
+                "--require-signature",
+                "--finalize",
+            ],
+            env={"PWA_RUNTIME_SIGNING_KEY": SIGNING_KEY},
+        )
+        assert result.returncode == 0
+        assert "Finalized workflow" in result.stdout
+
+
 def test_tampered_runtime_proof_after_record_fails() -> None:
     with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
         root = Path(dirname)
@@ -759,6 +804,8 @@ if __name__ == "__main__":
         test_host_supervisor_requires_command,
         test_cli_subagent_command_writes_signed_output_and_event,
         test_host_supervisor_with_cli_adapter_strict_finalize_passes,
+        test_claude_code_adapter_doctor_accepts_compatible_help,
+        test_claude_code_adapter_with_supervisor_strict_finalize_passes,
         test_tampered_runtime_proof_after_record_fails,
         test_tampered_runtime_event_after_record_fails,
         test_tampered_raw_runtime_event_after_record_fails,

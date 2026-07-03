@@ -87,6 +87,33 @@ The CLI adapter:
 
 This adapter proves that a separate CLI process ran and produced stdout. Whether that CLI process is a truly isolated subagent depends on the command you provide.
 
+## Claude Code CLI Adapter
+
+This repository includes a ready adapter for Claude Code CLI:
+
+```bash
+python3 scripts/claude_code_subagent_command.py doctor
+```
+
+If the doctor passes, run all workflow experts through Claude Code CLI:
+
+```bash
+PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
+  python3 scripts/run_host_subagents.py <workflow-dir> \
+    --command "python3 scripts/claude_code_subagent_command.py run --role {role} --task '{task}' --output '{output}' --raw-event '{raw_event}' --sign --bare --model sonnet" \
+    --runtime-provider claude-code-cli \
+    --require-signature \
+    --finalize
+```
+
+The adapter uses Claude Code's non-interactive print mode by default:
+
+```text
+claude -p --output-format text --no-session-persistence --permission-mode dontAsk --model sonnet
+```
+
+Use `--claude-command "<custom command>"` when your environment needs a different Claude-compatible command. The task prompt is passed through stdin.
+
 With `--require-signature`, the supervisor:
 
 1. Rejects unsigned raw events.
