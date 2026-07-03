@@ -68,13 +68,15 @@ For **Rewrite** and **Full package** requests, do not jump directly to the final
    python3 scripts/run_workflow.py record-agent <workflow-dir> --role <role> --mode simulated
    ```
 
-   If a real subagent was used, pass its runtime id:
+   If a real subagent was used, record it with the host runtime proof:
 
    ```bash
-   python3 scripts/run_workflow.py record-agent <workflow-dir> --role <role> --mode subagent --runtime-agent-id <agent-id>
+   python3 scripts/run_workflow.py record-agent <workflow-dir> --role <role> --mode subagent --runtime-agent-id <agent-id> --runtime-proof <proof.json>
    ```
 
-   Do not hand-write or invent a subagent id. If the runtime cannot provide a real UUID-like agent id, use `mode: simulated`. `simulated` output may still be useful, but it must be disclosed as simulated review, not as independent expert execution.
+   Read `references/runtime_proof.md` for the proof schema when integrating with a host runtime.
+
+   Do not hand-write or invent a subagent id or proof file. The proof must come from the host runtime or be created directly from the host runtime's subagent event data. If the runtime cannot provide a real UUID-like agent id and proof, use `mode: simulated`. `simulated` output may still be useful, but it must be disclosed as simulated review, not as independent expert execution.
 
 10. Check and finalize with Runner gates:
 
@@ -85,7 +87,7 @@ For **Rewrite** and **Full package** requests, do not jump directly to the final
 
 11. Only then provide the final response. If the checker fails, complete the missing artifacts first. If the checker warns about simulated expert output, disclose that in the final response.
 
-Trust boundary: the local runner verifies workflow artifacts, hashes, modes, and UUID-like runtime ids. It can catch missing steps and ordinary tampering, but it is not a cryptographic audit system. Strong proof of real subagent execution requires the host runtime to automatically provide the subagent id and execution record.
+Trust boundary: the local runner verifies workflow artifacts, hashes, modes, UUID-like runtime ids, and `runtime_proofs/<role>.json` files that bind each subagent role to the task and output hashes. It can catch missing steps, ordinary tampering, and bare UUID claims. It is not a cryptographic audit system. Strong proof of real subagent execution requires the host runtime to automatically provide or sign the subagent execution record.
 
 In the final response, summarize the workflow directory and show this compact working trail before the final article:
 
@@ -223,7 +225,7 @@ For Rewrite and Full package requests, run a multi-role review before finalizing
 
 Use this provenance vocabulary consistently:
 
-- `mode: subagent`: produced by a real spawned expert/subagent, recorded with a runtime-provided UUID-like agent id.
+- `mode: subagent`: produced by a real spawned expert/subagent, recorded with a runtime-provided UUID-like agent id and a matching runtime proof file.
 - `mode: simulated`: produced by the main agent following the role instructions because no subagent runtime was available.
 
 Never upgrade simulated review to subagent review after the fact.
@@ -250,6 +252,7 @@ Never upgrade simulated review to subagent review after the fact.
 - `references/platform_adaptation.md`: WeChat, Medium, Xiaohongshu, newsletter/blog adaptation.
 - `references/interview_questions.md`: targeted questions to extract missing material.
 - `references/examples_and_templates.md`: openings, titles, section headings, method components, endings.
+- `references/runtime_proof.md`: runtime proof schema for real subagent outputs.
 - `output_templates/`: ready formats for review reports, rewrite plans, and final article packages.
 - `scripts/run_article_workflow.py`: creates the required workflow packet from a Markdown source draft.
 - `scripts/run_workflow.py`: auditable Runner that prepares workflow packets, records agent outputs, writes `run_state.json`, appends `logs/run_log.jsonl`, and blocks finalization unless checks pass.
@@ -264,7 +267,7 @@ Never upgrade simulated review to subagent review after the fact.
 - `04a_author_voice_profile.md` inside a workflow packet: source-author voice fingerprint and migration rules. This must be completed before structural rewriting.
 - `07b_source_fidelity_review.md` inside a workflow packet: pass/fail review for whether the rewrite still means what the source meant.
 - `final_publish_article.md` inside a workflow packet: clean publish-ready article body only. It must not include workflow notes or internal headings.
-- `run_state.json` and `logs/run_log.jsonl` inside a workflow packet: Runner evidence. `mode: subagent` in Markdown is not trusted unless a matching Runner event and runtime agent id exist.
+- `run_state.json`, `logs/run_log.jsonl`, and `runtime_proofs/<role>.json` inside a workflow packet: Runner evidence. `mode: subagent` in Markdown is not trusted unless a matching Runner event, runtime agent id, and proof artifact exist.
 - `evals/`: realistic prompts and grading criteria for validating the skill.
 
 ## Output Rules

@@ -59,8 +59,8 @@ python3 scripts/run_workflow.py record-agent path/to/workflow-dir \
   --mode simulated
 ```
 
-Use `--mode subagent --runtime-agent-id <agent-id>` when a real subagent produced the output.
-Do not invent this id manually. If the runtime cannot provide a real UUID-like agent id, use `--mode simulated`.
+Use `--mode subagent --runtime-agent-id <agent-id> --runtime-proof <proof.json>` when a real subagent produced the output.
+Do not invent this id or proof manually. If the runtime cannot provide a real UUID-like agent id and proof, use `--mode simulated`.
 
 Check and finalize:
 
@@ -77,15 +77,16 @@ The runner writes:
 
 - `run_state.json`: current workflow state and recorded agent outputs.
 - `logs/run_log.jsonl`: append-only event log with hash chaining.
+- `runtime_proofs/<role>.json`: proof artifact that binds a subagent role to the runtime id, task hash, and output hash.
 - `gate_result.json`: final checker result after `check` or `finalize`.
 
-`mode: subagent` in an agent output is not trusted by itself. The checker requires matching runner evidence and a runtime agent id.
+`mode: subagent` in an agent output is not trusted by itself. The checker requires matching runner evidence, a runtime agent id, and a runtime proof artifact.
 
 Current trust levels:
 
 - `simulated`: recorded and reproducible, but not independent expert execution.
-- `subagent`: requires matching runner evidence and a UUID-like runtime agent id.
-- The local runner is not a cryptographic audit service. It catches missing records, mode mismatches, hash changes, source changes, and simple fake ids; strong proof still requires the host runtime to write signed or otherwise verifiable subagent execution records.
+- `subagent`: requires matching runner evidence, a UUID-like runtime agent id, and a proof file bound to the task/output hashes.
+- The local runner is not a cryptographic audit service. It catches missing records, mode mismatches, hash changes, source changes, bare UUID claims, and proof tampering; strong proof still requires the host runtime to write signed or otherwise verifiable subagent execution records.
 
 ## Design Principles
 

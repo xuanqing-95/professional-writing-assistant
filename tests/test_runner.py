@@ -20,6 +20,7 @@ SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from workflow_runtime import AGENT_ROLES as ROLES  # noqa: E402
+from workflow_runtime import artifact_record, utc_now  # noqa: E402
 
 SOURCE = ROOT / "tests" / "fixtures" / "minimal_source.md"
 
@@ -199,6 +200,52 @@ def record_all_simulated(workflow: Path) -> None:
         )
 
 
+def runtime_id_for(index: int) -> str:
+    return f"019f27cd-0000-7000-8000-{index:012d}"
+
+
+def write_runtime_proof(workflow: Path, role: str, runtime_agent_id: str, proof_dir: Path) -> Path:
+    import json
+
+    proof_dir.mkdir(parents=True, exist_ok=True)
+    proof_path = proof_dir / f"{role}.json"
+    payload = {
+        "schema_version": 1,
+        "proof_type": "codex.subagent.runtime_proof",
+        "runtime_provider": "codex-test-runtime",
+        "runtime_agent_id": runtime_agent_id,
+        "role": role,
+        "created_at": utc_now(),
+        "task_artifact": artifact_record(workflow / "agent_tasks" / f"{role}.md", workflow),
+        "output_artifact": artifact_record(workflow / "agent_outputs" / f"{role}.md", workflow),
+    }
+    proof_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return proof_path
+
+
+def record_all_subagents_with_proofs(workflow: Path, proof_dir: Path) -> None:
+    for index, role in enumerate(ROLES, 1):
+        runtime_id = runtime_id_for(index)
+        proof_path = write_runtime_proof(workflow, role, runtime_id, proof_dir)
+        run(
+            [
+                sys.executable,
+                "scripts/run_workflow.py",
+                "record-agent",
+                str(workflow),
+                "--role",
+                role,
+                "--mode",
+                "subagent",
+                "--runtime-agent-id",
+                runtime_id,
+                "--runtime-proof",
+                str(proof_path),
+            ],
+            check=True,
+        )
+
+
 def test_tampered_agent_output_after_record_fails() -> None:
     with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
         workflow = prepare(Path(dirname))
@@ -280,28 +327,49 @@ def test_record_agent_rejects_invalid_runtime_id_format() -> None:
         assert "UUID-like runtime id" in result.stderr
 
 
-def test_claimed_subagent_with_uuid_runtime_id_still_passes_as_unsigned_proof() -> None:
+def test_claimed_subagent_with_uuid_runtime_id_without_proof_fails() -> None:
     with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
         workflow = prepare(Path(dirname))
         fill_workflow(workflow, agent_mode="subagent")
-        for index, role in enumerate(ROLES, 1):
-            run(
-                [
-                    sys.executable,
-                    "scripts/run_workflow.py",
-                    "record-agent",
-                    str(workflow),
-                    "--role",
-                    role,
-                    "--mode",
-                    "subagent",
-                    "--runtime-agent-id",
-                    f"019f27cd-0000-7000-8000-{index:012d}",
-                ],
-                check=True,
-            )
+        result = run(
+            [
+                sys.executable,
+                "scripts/run_workflow.py",
+                "record-agent",
+                str(workflow),
+                "--role",
+                "strategist",
+                "--mode",
+                "subagent",
+                "--runtime-agent-id",
+                runtime_id_for(1),
+            ],
+        )
+        assert result.returncode != 0
+        assert "requires --runtime-proof" in result.stderr
+
+
+def test_subagent_with_runtime_proof_passes() -> None:
+    with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
+        root = Path(dirname)
+        workflow = prepare(root)
+        fill_workflow(workflow, agent_mode="subagent")
+        record_all_subagents_with_proofs(workflow, root / "proofs")
         result = check_workflow(workflow)
         assert result.returncode == 0
+
+
+def test_tampered_runtime_proof_after_record_fails() -> None:
+    with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
+        root = Path(dirname)
+        workflow = prepare(root)
+        fill_workflow(workflow, agent_mode="subagent")
+        record_all_subagents_with_proofs(workflow, root / "proofs")
+        proof = workflow / "runtime_proofs" / "strategist.json"
+        proof.write_text(proof.read_text(encoding="utf-8").replace("strategist", "interviewer", 1), encoding="utf-8")
+        result = check_workflow(workflow)
+        assert result.returncode != 0
+        assert "runtime proof" in result.stdout
 
 
 if __name__ == "__main__":
@@ -314,7 +382,9 @@ if __name__ == "__main__":
         test_tampered_runner_log_fails,
         test_record_agent_rejects_frontmatter_mode_mismatch,
         test_record_agent_rejects_invalid_runtime_id_format,
-        test_claimed_subagent_with_uuid_runtime_id_still_passes_as_unsigned_proof,
+        test_claimed_subagent_with_uuid_runtime_id_without_proof_fails,
+        test_subagent_with_runtime_proof_passes,
+        test_tampered_runtime_proof_after_record_fails,
     ]:
         test()
     print("runner tests passed")

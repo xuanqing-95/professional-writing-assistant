@@ -15,6 +15,7 @@ from typing import Any
 RUN_STATE = "run_state.json"
 RUN_LOG = "logs/run_log.jsonl"
 GATE_RESULT = "gate_result.json"
+RUNTIME_PROOFS_DIR = "runtime_proofs"
 AGENT_ROLES = [
     "strategist",
     "interviewer",
@@ -177,3 +178,38 @@ def parse_frontmatter(text: str) -> dict[str, str]:
 
 def read_agent_frontmatter(path: Path) -> dict[str, str]:
     return parse_frontmatter(path.read_text(encoding="utf-8"))
+
+
+def runtime_proof_relpath(role: str) -> str:
+    return f"{RUNTIME_PROOFS_DIR}/{role}.json"
+
+
+def validate_runtime_proof_payload(
+    payload: dict[str, Any],
+    role: str,
+    runtime_agent_id: str,
+    task_artifact: dict[str, Any],
+    output_artifact: dict[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    if payload.get("schema_version") != 1:
+        errors.append(f"runtime proof for {role} has invalid schema_version")
+    if payload.get("proof_type") != "codex.subagent.runtime_proof":
+        errors.append(f"runtime proof for {role} has invalid proof_type")
+    if payload.get("role") != role:
+        errors.append(f"runtime proof role mismatch for {role}")
+    if payload.get("runtime_agent_id") != runtime_agent_id:
+        errors.append(f"runtime proof runtime_agent_id mismatch for {role}")
+    if not payload.get("runtime_provider"):
+        errors.append(f"runtime proof for {role} missing runtime_provider")
+    if not payload.get("created_at"):
+        errors.append(f"runtime proof for {role} missing created_at")
+
+    proof_task = payload.get("task_artifact") or {}
+    proof_output = payload.get("output_artifact") or {}
+    for key in ["path", "sha256", "size"]:
+        if proof_task.get(key) != task_artifact.get(key):
+            errors.append(f"runtime proof task_artifact.{key} mismatch for {role}")
+        if proof_output.get(key) != output_artifact.get(key):
+            errors.append(f"runtime proof output_artifact.{key} mismatch for {role}")
+    return errors

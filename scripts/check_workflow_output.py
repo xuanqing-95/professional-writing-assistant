@@ -13,8 +13,12 @@ from pathlib import Path
 from workflow_runtime import (
     RUNTIME_AGENT_ID_RE,
     VALID_AGENT_MODES,
+    iter_log_events,
     read_agent_frontmatter,
+    read_json,
+    runtime_proof_relpath,
     sha256_file,
+    validate_runtime_proof_payload,
     validate_log_chain,
 )
 
@@ -35,21 +39,6 @@ FIDELITY_PASS_RE = re.compile(r"\bpass\b|通过|无实质语义漂移", re.IGNOR
 FIDELITY_BLOCK_RE = re.compile(r"needs revision|blocked|不通过|需要修订|待作者确认", re.IGNORECASE)
 
 
-def read_json(path: Path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def read_log_events(path: Path) -> list[dict]:
-    events = []
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        if not line.strip():
-            continue
-        event = json.loads(line)
-        event["_line"] = line_number
-        events.append(event)
-    return events
-
-
 def validate_runner_evidence(root: Path, agent_modes: dict[str, str]) -> list[str]:
     errors: list[str] = []
     state_path = root / "run_state.json"
@@ -61,7 +50,7 @@ def validate_runner_evidence(root: Path, agent_modes: dict[str, str]) -> list[st
         return ["missing runner log: logs/run_log.jsonl"]
 
     state = read_json(state_path)
-    events = read_log_events(log_path)
+    events = iter_log_events(root)
     errors.extend(validate_log_chain(root))
 
     if not any(event.get("event_type") == "run_prepared" for event in events):
@@ -105,6 +94,30 @@ def validate_runner_evidence(root: Path, agent_modes: dict[str, str]) -> list[st
             record.get("runtime_agent_id", "")
         ):
             errors.append(f"subagent output for {role} has invalid runtime_agent_id format")
+        if declared_mode == "subagent":
+            proof_record = record.get("runtime_proof_artifact") or {}
+            if not proof_record:
+                errors.append(f"subagent output for {role} has no runtime proof artifact")
+            else:
+                expected_proof_path = runtime_proof_relpath(role)
+                if proof_record.get("path") != expected_proof_path:
+                    errors.append(f"subagent runtime proof path mismatch for {role}")
+                proof_path = root / proof_record.get("path", "")
+                if not proof_path.exists():
+                    errors.append(f"subagent runtime proof file missing for {role}")
+                else:
+                    if sha256_file(proof_path) != proof_record.get("sha256"):
+                        errors.append(f"subagent runtime proof hash mismatch for {role}")
+                    proof_payload = read_json(proof_path)
+                    errors.extend(
+                        validate_runtime_proof_payload(
+                            proof_payload,
+                            role,
+                            record.get("runtime_agent_id", ""),
+                            record.get("task_artifact", {}),
+                            record.get("output_artifact", {}),
+                        )
+                    )
 
     return errors
 
