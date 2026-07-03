@@ -49,6 +49,17 @@ SOURCE_DERIVED_MARKER_CANDIDATES = [
 ]
 
 SECTION_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
+EVIDENCE_RE = re.compile(r"(evidence|source|quote|原文|证据|出处|例句)\s*[:：]", re.IGNORECASE)
+GENERIC_PROFILE_PHRASES = [
+    "有个人口吻",
+    "有反思",
+    "有洞察",
+    "比较真实",
+    "比较自然",
+    "更有温度",
+    "有自己的风格",
+    "保持原味",
+]
 
 
 def count(text: str, needle: str) -> int:
@@ -103,6 +114,29 @@ def profile_forbidden(profile: str) -> list[str]:
     return dedupe(list_items(section(profile, "Do Not Introduce")))
 
 
+def profile_quality_errors(profile: str) -> list[str]:
+    errors: list[str] = []
+    if not profile:
+        return errors
+
+    for section_name in ("Signature Phrases / Moves", "Preserve", "Do Not Introduce", "Migration Rules"):
+        body = section(profile, section_name)
+        if not body:
+            errors.append(f"author voice profile missing section: {section_name}")
+            continue
+        if not EVIDENCE_RE.search(body):
+            errors.append(f"author voice profile section lacks source evidence: {section_name}")
+
+    generic_hits = [phrase for phrase in GENERIC_PROFILE_PHRASES if phrase in profile]
+    evidence_count = len(EVIDENCE_RE.findall(profile))
+    if generic_hits and evidence_count < 3:
+        errors.append(
+            "author voice profile is too generic without enough source evidence: "
+            + ", ".join(generic_hits[:5])
+        )
+    return errors
+
+
 def source_derived_markers(source: str) -> list[str]:
     return [marker for marker in SOURCE_DERIVED_MARKER_CANDIDATES if marker in source]
 
@@ -133,6 +167,8 @@ def main() -> int:
 
     errors: list[str] = []
     warnings: list[str] = []
+
+    errors.extend(profile_quality_errors(profile))
 
     source_i = count(source, "我")
     article_i = count(article, "我")

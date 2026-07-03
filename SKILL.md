@@ -62,59 +62,19 @@ For **Rewrite** and **Full package** requests, do not jump directly to the final
 8. For each file in `agent_tasks/`, either:
    - spawn a real subagent/expert when the runtime supports it, then paste its output into the matching `agent_outputs/` file with `mode: subagent`; or
    - fill the output yourself only when subagents are unavailable, with `mode: simulated`.
-9. Record each agent output after it is written:
+9. Record each agent output after it is written, then run `check` and `finalize`:
 
    ```bash
    python3 scripts/run_workflow.py record-agent <workflow-dir> --role <role> --mode simulated
-   ```
-
-   If a real subagent was used, first adapt the host runtime's raw subagent completion event:
-
-   ```bash
-   python3 scripts/adapt_codex_subagent_event.py --workflow-dir <workflow-dir> --role <role> --raw-event <raw-event.json> --runtime-agent-id <agent-id>
-   ```
-
-   If the host runtime exposes a reusable subagent command, prefer the supervisor path instead of manually adapting and recording each role:
-
-   ```bash
-   PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
-     python3 scripts/run_host_subagents.py <workflow-dir> --command "<host-command> --role {role} --task '{task}' --output '{output}' --raw-event '{raw_event}'" --require-signature --finalize
-   ```
-
-   Read `references/host_runtime_integration.md` for the host command contract. For CLI-based runtimes that read stdin and return Markdown on stdout, use `scripts/cli_subagent_command.py` as the host command adapter. For Claude Code CLI, use `scripts/claude_code_subagent_command.py` and run its `doctor` command first.
-
-   For high-assurance runs where the host can sign raw events, require signature verification during adaptation:
-
-   ```bash
-   PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
-     python3 scripts/adapt_codex_subagent_event.py --workflow-dir <workflow-dir> --role <role> --raw-event <raw-event.json> --runtime-agent-id <agent-id> --require-signature
-   ```
-
-   Then record the subagent output with the generated event path printed by the adapter:
-
-   ```bash
-   python3 scripts/run_workflow.py record-agent <workflow-dir> --role <role> --mode subagent --runtime-agent-id <agent-id> --runtime-event <generated-event.json>
-   ```
-
-   Read `references/runtime_proof.md` for the raw event and proof schema when integrating with a host runtime. Do not hand-write or invent a subagent id or event file. The raw event must come from the host runtime. The adapter archives it, and the runner generates `runtime_proofs/<role>.json` from the adapted event and current artifacts. If the runtime cannot provide a real UUID-like agent id and raw event, use `mode: simulated`. `simulated` output may still be useful, but it must be disclosed as simulated review, not as independent expert execution.
-
-10. Check and finalize with Runner gates:
-
-   ```bash
    python3 scripts/run_workflow.py check <workflow-dir>
    python3 scripts/run_workflow.py finalize <workflow-dir>
    ```
 
-   For high-assurance runs, require every expert output to be a signed real subagent event:
+   If a real subagent runtime is available, do not invent ids or events. Use the host runtime integration path and record `mode: subagent` only when the host produced a raw runtime event.
 
-   ```bash
-   PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
-     python3 scripts/run_workflow.py finalize <workflow-dir> --require-signed-runtime-events
-   ```
+   Read `references/host_runtime_integration.md` for automatic subagent execution, CLI adapters, Claude Code CLI, signed events, and strict finalize. Read `references/runtime_proof.md` for the trust boundary.
 
-11. Only then provide the final response. If the checker fails, complete the missing artifacts first. If the checker warns about simulated expert output, disclose that in the final response.
-
-Trust boundary: the local runner verifies workflow artifacts, hashes, modes, UUID-like runtime ids, archived `runtime_raw_events/<role>.json`, adapted `runtime_events/<role>.json`, and runner-generated `runtime_proofs/<role>.json` files that bind each subagent role to the task, output, and raw runtime event hashes. It can catch missing steps, ordinary tampering, bare UUID claims, edited subagent output, detached proof claims, and unsigned subagent claims when `--require-signed-runtime-events` is used. Strong proof still depends on the host runtime automatically creating and signing the raw subagent event; the Skill cannot make a host spawn or sign agents by itself.
+10. Only then provide the final response. If the checker fails, complete the missing artifacts first. If the checker warns about simulated expert output, disclose that in the final response.
 
 In the final response, summarize the workflow directory and show this compact working trail before the final article:
 
@@ -243,6 +203,7 @@ For Rewrite and Full package tasks, the workflow is file-backed. The generated w
    - A publishable article should usually score at least 7/10 on clarity and reader value, and at least 6/10 on credibility and shareability.
    - If below threshold, provide a revision plan before final output.
    - Run `scripts/check_author_voice.py 00_source.md final_publish_article.md --profile 04a_author_voice_profile.md` when testing a completed workflow publish body directly.
+   - Run `scripts/check_source_fidelity.py 00_source.md final_publish_article.md` when testing source meaning directly.
    - Run `scripts/check_article_readability.py final_publish_article.md --source-image-count <n>` when testing the publish body directly.
    - Run `scripts/check_workflow_output.py` and do not deliver while it fails.
 
@@ -288,10 +249,12 @@ Never upgrade simulated review to subagent review after the fact.
 - `scripts/run_host_subagents.py`: calls a host-provided subagent command for each expert role, adapts raw events, records agent outputs, and can strict-finalize signed runs.
 - `scripts/cli_subagent_command.py`: wraps a stdin/stdout model CLI as a host subagent command that writes signed raw events and agent output files.
 - `scripts/claude_code_subagent_command.py`: Claude Code CLI-specific host command adapter with a `doctor` compatibility check.
+- `scripts/pwa_demo.py`: creates and finalizes a local simulated quickstart workflow from `examples/quickstart-source.md`.
 - `scripts/workflow_runtime.py`: shared hash, event-log, and state helpers for Runner evidence.
 - `scripts/extract_author_voice.py`: extracts a source-local voice seed so author style comes from the current source, not examples or prior users.
 - `scripts/check_workflow_output.py`: validates that all required packet files are filled before delivery.
 - `scripts/check_author_voice.py`: validates that the rewritten article keeps first-person presence, source signature markers, and avoids generic opening/platform phrases.
+- `scripts/check_source_fidelity.py`: validates high-risk source drift such as missing numbers, lost caution, added certainty, or repeated source terms disappearing.
 - `scripts/check_article_readability.py`: validates that `final_publish_article.md` has article-like opening tension, no internal sections, preserved images, and a non-repetitive ending.
 - `00_media_manifest.md` inside a workflow packet: source image inventory, captions, and required placement decisions.
 - `00_source_claim_map.md` inside a workflow packet: facts, claims, causal logic, boundaries, allowed changes, and forbidden changes that protect the source meaning.

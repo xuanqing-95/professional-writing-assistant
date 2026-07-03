@@ -439,19 +439,19 @@ The current source is the only authority for this author's voice.
 {required_block("sentence and paragraph rhythm to preserve")}
 
 ## Signature Phrases / Moves
-{required_block("recurring phrases, transitions, or judgment patterns")}
+{required_block("recurring phrases, transitions, or judgment patterns; include Evidence: source quote or paragraph location")}
 
 ## Preserve
-{required_block("voice traits and original texture to preserve")}
+{required_block("voice traits and original texture to preserve; include Evidence: source quote or paragraph location")}
 
 ## Clean Up
 {required_block("roughness to clean without flattening the voice")}
 
 ## Do Not Introduce
-{required_block("generic or alien tone/phrases not found in source")}
+{required_block("generic or alien tone/phrases not found in source; include Evidence: why source does not support this tone")}
 
 ## Migration Rules
-{required_block("rules the rewrite must obey to remain recognizably the same author")}
+{required_block("rules the rewrite must obey to remain recognizably the same author; include Evidence: source quote or paragraph location")}
 
 ## Voice Check
 {required_block("how final_publish_article.md will be checked against this profile")}
@@ -724,6 +724,7 @@ This review protects the original meaning. A more polished article is not accept
 - [ ] Verify final_publish_article.md includes all kept source images in correct positions.
 - [ ] Verify final_publish_article.md does not include internal workflow notes.
 - [ ] Run scripts/check_author_voice.py on 00_source.md and final_publish_article.md, with 04a_author_voice_profile.md when completed.
+- [ ] Run scripts/check_source_fidelity.py on 00_source.md and final_publish_article.md.
 - [ ] Run scripts/check_article_readability.py on final_publish_article.md.
 - [ ] Run scripts/run_workflow.py check on this directory.
 - [ ] Run scripts/run_workflow.py finalize on this directory before delivery.

@@ -20,6 +20,7 @@ Read the source draft and `00_author_voice_seed.md`, then identify:
 ## Extraction Rules
 
 - Use only this source and its generated voice seed. Never import markers from examples, evals, prior users, or previous drafts.
+- Attach source evidence to every item in `Signature Phrases / Moves`, `Preserve`, `Do Not Introduce`, and `Migration Rules`. Use `Evidence:` followed by a short source quote or paragraph location.
 - A voice trait is strong only when it passes at least two of these checks:
   1. It appears repeatedly or at a decisive moment in the source.
   2. It can guide rewriting a new section.
@@ -65,3 +66,4 @@ mode: subagent
 ## Quality Bar
 
 The profile should be specific enough that a later draft can be checked against it. If the profile could apply to any thoughtful AI/tool/product article, it is too generic.
+If the profile has no source quotes, paragraph locations, or `Evidence:` lines, it is not usable.

@@ -24,9 +24,9 @@ def resolve_claude_command(args: argparse.Namespace) -> str:
         "--no-session-persistence",
         "--permission-mode",
         args.permission_mode,
-        "--model",
-        args.model,
     ]
+    if args.model:
+        command.extend(["--model", args.model])
     if args.bare:
         command.append("--bare")
     if args.tools:
@@ -89,7 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Override the full model CLI command. The generated prompt is passed on stdin.",
     )
-    run.add_argument("--model", default="sonnet")
+    run.add_argument("--model", default="", help="Optional Claude model alias/name. Omit to use Claude Code defaults.")
     run.add_argument("--permission-mode", default="dontAsk")
     run.add_argument("--tools", default="")
     run.add_argument("--bare", action="store_true")

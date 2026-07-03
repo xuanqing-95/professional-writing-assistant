@@ -100,7 +100,7 @@ If the doctor passes, run all workflow experts through Claude Code CLI:
 ```bash
 PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
   python3 scripts/run_host_subagents.py <workflow-dir> \
-    --command "python3 scripts/claude_code_subagent_command.py run --role {role} --task '{task}' --output '{output}' --raw-event '{raw_event}' --sign --bare --model sonnet" \
+    --command "python3 scripts/claude_code_subagent_command.py run --role {role} --task '{task}' --output '{output}' --raw-event '{raw_event}' --sign" \
     --runtime-provider claude-code-cli \
     --require-signature \
     --finalize
@@ -109,10 +109,10 @@ PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
 The adapter uses Claude Code's non-interactive print mode by default:
 
 ```text
-claude -p --output-format text --no-session-persistence --permission-mode dontAsk --model sonnet
+claude -p --output-format text --no-session-persistence --permission-mode dontAsk
 ```
 
-Use `--claude-command "<custom command>"` when your environment needs a different Claude-compatible command. The task prompt is passed through stdin.
+Use `--model <model>` when you want to pin a specific available model. Use `--claude-command "<custom command>"` when your environment needs a different Claude-compatible command. The task prompt is passed through stdin.
 
 With `--require-signature`, the supervisor:
 

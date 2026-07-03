@@ -140,6 +140,22 @@ Never use style markers from:
 - the Skill author's own test articles;
 - platform stereotypes.
 
+## Evidence Requirement
+
+Every preserved or forbidden voice rule must be tied to the current source.
+Use short `Evidence:` lines with a quote, phrase, or paragraph location.
+
+Bad:
+
+- Preserve: reflective first-person tone.
+
+Good:
+
+- Preserve: the author moves from a wrong first assumption to a later realization.
+  Evidence: "我原本以为问题是材料太散，后来发现..."
+
+If a profile contains only abstract labels such as "真实", "有洞察", "有个人风格", or "保持原味" without source evidence, treat it as incomplete.
+
 ## Workflow Requirements
 
 For Rewrite and Full package tasks:

@@ -93,6 +93,42 @@ def fill_workflow(workflow: Path, agent_mode: str = "simulated") -> None:
         "# 07b Source Fidelity Review\n\n## Meaning Preservation Verdict\n\npass\n",
         encoding="utf-8",
     )
+    (workflow / "04a_author_voice_profile.md").write_text(
+        """# 04a Author Voice Profile
+
+## Voice Fingerprint
+First-person practical reflection.
+
+## Thinking Lens
+The author understands the recap by separating task, evidence, and personal judgment.
+
+## Sentence Rhythm
+Short paragraphs with a turn from first assumption to later discovery.
+
+## Signature Phrases / Moves
+- Move from first assumption to later discovery. Evidence: "我原本以为问题是材料太散，后来发现..."
+- Keep the AI writing boundary. Evidence: "AI 不是直接替我写文章..."
+
+## Preserve
+- Preserve the first-person stuck-to-clear sequence. Evidence: "我被一个项目复盘卡住了。"
+- Preserve cautious judgment. Evidence: "哪些结论只能算我的个人判断。"
+
+## Clean Up
+- Compress repetition without changing the source sequence.
+
+## Do Not Introduce
+- Do not introduce universal AI claims. Evidence: the source describes one project recap.
+- Do not introduce motivational platform language. Evidence: the source is practical and plain.
+
+## Migration Rules
+- Keep the source order: stuck -> wrong assumption -> structured with AI -> simple method. Evidence: this order appears in the source.
+- Keep first-person framing. Evidence: the source uses "我" throughout.
+
+## Voice Check
+The final article should still sound like the same author explaining a small practical discovery.
+""",
+        encoding="utf-8",
+    )
     (workflow / "final_publish_article.md").write_text(ARTICLE, encoding="utf-8")
     (workflow / "09_final_article.md").write_text(
         f"""# 09 Final Article

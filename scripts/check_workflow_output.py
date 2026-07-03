@@ -307,6 +307,26 @@ def main() -> int:
             if result.returncode != 0:
                 errors.append("author voice gate failed")
 
+        fidelity_script = Path(__file__).with_name("check_source_fidelity.py")
+        if fidelity_script.exists() and source_path.exists():
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(fidelity_script),
+                    str(source_path),
+                    str(publish_path),
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            if result.stdout.strip():
+                print(result.stdout.strip())
+            if result.stderr.strip():
+                print(result.stderr.strip())
+            if result.returncode != 0:
+                errors.append("source fidelity gate failed")
+
         readability_script = Path(__file__).with_name("check_article_readability.py")
         if readability_script.exists():
             result = subprocess.run(

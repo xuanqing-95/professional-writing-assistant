@@ -87,3 +87,14 @@ Ask before finalizing:
 - `blocked`: author verification required.
 
 Only `pass` can proceed to delivery.
+
+## Script Gate
+
+Run `scripts/check_source_fidelity.py 00_source.md final_publish_article.md` before delivery.
+This script is a heuristic guard, not a full semantic judge. It catches high-risk drift such as:
+
+- source numbers, dates, percentages, or time markers disappearing;
+- cautious source language being rewritten as strong certainty;
+- many repeated source terms disappearing from the article.
+
+If the script fails, revise the article or record explicit author verification before delivery.

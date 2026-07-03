@@ -32,11 +32,13 @@ Use this Skill when you want to:
 - `agents/`: role prompts for strategy, interviewing, writing, narrative, fidelity, credibility, and review.
 - `scripts/run_article_workflow.py`: creates the workflow packet.
 - `scripts/run_workflow.py`: prepares, records, checks, and finalizes auditable workflow runs.
+- `scripts/pwa_demo.py`: runs a complete local simulated quickstart workflow.
 - `scripts/run_host_subagents.py`: runs host-provided subagent commands and records signed evidence.
 - `scripts/cli_subagent_command.py`: wraps a stdin/stdout model CLI as a host subagent command.
 - `scripts/claude_code_subagent_command.py`: wraps Claude Code CLI as a signed host subagent command.
 - `scripts/check_workflow_output.py`: validates the workflow before delivery.
 - `scripts/check_author_voice.py`: checks whether the rewrite preserves the author's voice.
+- `scripts/check_source_fidelity.py`: checks high-risk source-meaning drift.
 - `scripts/check_article_readability.py`: checks whether the publish body reads like an article instead of a work note.
 
 ## Quick Start
@@ -45,7 +47,19 @@ Download the packaged Skill from the latest release:
 
 https://github.com/xuanqing-95/professional-writing-assistant/releases/latest
 
-Or run from the source checkout:
+### Path 1: 3-minute local demo
+
+Use this first if you only want to verify the workflow works. It does not require Claude, subagents, or signing.
+
+```bash
+python3 scripts/pwa_demo.py
+```
+
+The demo prepares a workflow, fills a small simulated article packet, records all expert outputs as `mode: simulated`, runs the gates, and prints the workflow path.
+
+### Path 2: Agent-assisted article workflow
+
+Use this when an AI agent will fill the generated workflow files and write the final article.
 
 ```bash
 python3 scripts/run_workflow.py prepare \
@@ -62,6 +76,10 @@ python3 scripts/run_workflow.py record-agent path/to/workflow-dir \
   --role fidelity_reviewer \
   --mode simulated
 ```
+
+### Path 3: strict real-subagent workflow
+
+Use this only when your host runtime can launch real subagents and provide raw runtime events. For signed publication runs, the host must also protect `PWA_RUNTIME_SIGNING_KEY`.
 
 When a real subagent produced the output, first adapt the raw Codex subagent event:
 
@@ -127,7 +145,7 @@ python3 scripts/claude_code_subagent_command.py doctor
 
 PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
   python3 scripts/run_host_subagents.py path/to/workflow-dir \
-    --command "python3 scripts/claude_code_subagent_command.py run --role {role} --task '{task}' --output '{output}' --raw-event '{raw_event}' --sign --bare --model sonnet" \
+    --command "python3 scripts/claude_code_subagent_command.py run --role {role} --task '{task}' --output '{output}' --raw-event '{raw_event}' --sign" \
     --runtime-provider claude-code-cli \
     --require-signature \
     --finalize
