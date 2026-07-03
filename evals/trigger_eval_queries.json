@@ -1,0 +1,50 @@
+[
+  {
+    "query": "我有一篇写 AI 工具实践的草稿，读起来太像流水账了，帮我改成一篇适合公众号的经验文，要有干货也有传播感。",
+    "should_trigger": true
+  },
+  {
+    "query": "帮我把这次产品设计项目复盘整理成 Medium 风格的文章，重点是我从失败里学到的判断。",
+    "should_trigger": true
+  },
+  {
+    "query": "我想写一篇个人经历文章，不想太鸡汤，希望读者能收藏，有没有结构和写法？",
+    "should_trigger": true
+  },
+  {
+    "query": "把下面这些零散笔记变成一篇 newsletter：我第一次尝试独自旅行，后来发现真正难的不是做攻略，而是接受计划被打乱。",
+    "should_trigger": true
+  },
+  {
+    "query": "帮我评估这篇公众号草稿为什么不好看，最好按专业写作者的标准打分。",
+    "should_trigger": true
+  },
+  {
+    "query": "我只有一个产品复盘想法，先别写正文，帮我追问素材并整理成文章 brief。",
+    "should_trigger": true
+  },
+  {
+    "query": "把这段亲子沟通复盘改造成一篇 newsletter，重点是保留我的反省语气和现场感。",
+    "should_trigger": true
+  },
+  {
+    "query": "请把这段中文翻译成英文，不需要改写结构。",
+    "should_trigger": false
+  },
+  {
+    "query": "帮我写一首关于 AI 的诗。",
+    "should_trigger": false
+  },
+  {
+    "query": "帮我做一个短视频口播脚本，30 秒以内，适合抖音。",
+    "should_trigger": false
+  },
+  {
+    "query": "请总结这份 PDF 的重点，不需要改成文章。",
+    "should_trigger": false
+  },
+  {
+    "query": "帮我写一篇学术论文的文献综述，要求 APA 格式。",
+    "should_trigger": false
+  }
+]

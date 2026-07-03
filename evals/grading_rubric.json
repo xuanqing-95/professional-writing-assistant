@@ -1,0 +1,49 @@
+{
+  "skill_name": "professional-writing-assistant",
+  "assertions": [
+    {
+      "name": "has_clear_article_positioning",
+      "description": "Output identifies target reader, core promise, and article thesis."
+    },
+    {
+      "name": "uses_personal_experience_structure",
+      "description": "Output structures the article around problem, misjudgment, turning point, method, and larger judgment rather than chronology only."
+    },
+    {
+      "name": "includes_reusable_reader_value",
+      "description": "Output includes at least one checklist, framework, table, template, or step-by-step method."
+    },
+    {
+      "name": "improves_shareability_without_overclaiming",
+      "description": "Output includes title ideas or memorable lines while avoiding exaggerated or unsupported claims."
+    },
+    {
+      "name": "adapts_to_platform",
+      "description": "Output changes tone and structure according to the named platform such as WeChat Official Account or Medium."
+    },
+    {
+      "name": "asks_targeted_questions_when_material_is_missing",
+      "description": "When source material is thin, output asks no more than three useful questions or labels assumptions instead of inventing details."
+    },
+    {
+      "name": "preserves_author_voice_and_boundaries",
+      "description": "Output keeps personal voice, marks unverifiable claims, and avoids fabricated experiences, metrics, quotes, or confidential details."
+    },
+    {
+      "name": "preserves_author_voice_dna",
+      "description": "For rewrites, output first extracts the source author's voice fingerprint and migration rules, then keeps the rewritten article recognizably in the same author's flavor rather than generic AI or public-account prose."
+    },
+    {
+      "name": "uses_file_backed_workflow_packet",
+      "description": "For rewrite or full-package tasks, output is based on a completed workflow packet with intake diagnosis, strategy brief, role reviews, rewrite plan, final article, and a passing workflow check."
+    },
+    {
+      "name": "preserves_source_images_and_captions",
+      "description": "When the source draft contains images or screenshots, output preserves kept image links, visible captions, and includes a placement note explaining where each image belongs in the rewritten article."
+    },
+    {
+      "name": "reads_like_an_article_not_a_document",
+      "description": "Final publish body creates curiosity in the opening, follows a narrative arc, avoids report/tutorial setup language, and ends with one earned judgment instead of repeated summary."
+    }
+  ]
+}

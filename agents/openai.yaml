@@ -1,0 +1,4 @@
+interface:
+  display_name: "专业个人经验文章写作助手"
+  short_description: "把个人经验、项目复盘、草稿打磨成适合发布的长文章稿"
+  default_prompt: "Use $professional-writing-assistant to turn my rough notes into a publishable article package."
