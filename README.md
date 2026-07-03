@@ -59,8 +59,25 @@ python3 scripts/run_workflow.py record-agent path/to/workflow-dir \
   --mode simulated
 ```
 
-Use `--mode subagent --runtime-agent-id <agent-id> --runtime-event <event.json>` when a real subagent produced the output.
-Do not invent this id or event manually. The runner generates the proof from the raw event and current artifacts. If the runtime cannot provide a real UUID-like agent id and raw event, use `--mode simulated`.
+When a real subagent produced the output, first adapt the raw Codex subagent event:
+
+```bash
+python3 scripts/adapt_codex_subagent_event.py \
+  --workflow-dir path/to/workflow-dir \
+  --role fidelity_reviewer \
+  --raw-event path/to/raw-subagent-event.json \
+  --runtime-agent-id <agent-id>
+```
+
+Then record the subagent output with the generated event path printed by the adapter. Do not invent this id or event manually. If the runtime cannot provide a real UUID-like agent id and raw event, use `--mode simulated`.
+
+```bash
+python3 scripts/run_workflow.py record-agent path/to/workflow-dir \
+  --role fidelity_reviewer \
+  --mode subagent \
+  --runtime-agent-id <agent-id> \
+  --runtime-event <generated-event.json>
+```
 
 Check and finalize:
 
@@ -77,7 +94,8 @@ The runner writes:
 
 - `run_state.json`: current workflow state and recorded agent outputs.
 - `logs/run_log.jsonl`: append-only event log with hash chaining.
-- `runtime_events/<role>.json`: raw host-runtime event for a completed subagent role.
+- `runtime_raw_events/<role>.json`: archived raw host-runtime event for a completed subagent role.
+- `runtime_events/<role>.json`: adapted runner runtime event.
 - `runtime_proofs/<role>.json`: runner-generated proof artifact that binds a subagent role to the runtime id, task hash, output hash, and raw event hash.
 - `gate_result.json`: final checker result after `check` or `finalize`.
 
@@ -86,7 +104,7 @@ The runner writes:
 Current trust levels:
 
 - `simulated`: recorded and reproducible, but not independent expert execution.
-- `subagent`: requires matching runner evidence, a UUID-like runtime agent id, a raw runtime event, and a runner-generated proof file bound to the task/output/event hashes.
+- `subagent`: requires matching runner evidence, a UUID-like runtime agent id, an archived raw runtime event, an adapted runtime event, and a runner-generated proof file bound to the task/output/event hashes.
 - The local runner is not a cryptographic audit service. It catches missing records, mode mismatches, hash changes, source changes, bare UUID claims, detached proof claims, event tampering, and proof tampering; strong proof still requires the host runtime to write signed or otherwise verifiable subagent execution records.
 
 ## Design Principles

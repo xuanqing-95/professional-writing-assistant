@@ -117,6 +117,7 @@ def validate_runner_evidence(root: Path, agent_modes: dict[str, str]) -> list[st
                             role,
                             record.get("runtime_agent_id", ""),
                             record.get("output_artifact", {}),
+                            root,
                         )
                     )
             proof_record = record.get("runtime_proof_artifact") or {}

@@ -51,6 +51,8 @@ DEFAULT_ARTIFACT_PATTERNS = [
     "10_*.md",
     "agent_tasks/*.md",
     "agent_outputs/*.md",
+    "runtime_raw_events/*.json",
+    "runtime_event_imports/*.json",
     "runtime_events/*.json",
     "runtime_proofs/*.json",
     "final_publish_article.md",
@@ -171,6 +173,7 @@ def command_record_agent(args: argparse.Namespace) -> int:
             role,
             args.runtime_agent_id,
             output_artifact,
+            root,
         )
         if event_errors:
             raise SystemExit("invalid runtime event:\n- " + "\n- ".join(event_errors))

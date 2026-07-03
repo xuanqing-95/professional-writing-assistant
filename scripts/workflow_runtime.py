@@ -17,6 +17,7 @@ RUN_LOG = "logs/run_log.jsonl"
 GATE_RESULT = "gate_result.json"
 RUNTIME_PROOFS_DIR = "runtime_proofs"
 RUNTIME_EVENTS_DIR = "runtime_events"
+RUNTIME_RAW_EVENTS_DIR = "runtime_raw_events"
 AGENT_ROLES = [
     "strategist",
     "interviewer",
@@ -189,11 +190,16 @@ def runtime_event_relpath(role: str) -> str:
     return f"{RUNTIME_EVENTS_DIR}/{role}.json"
 
 
+def runtime_raw_event_relpath(role: str) -> str:
+    return f"{RUNTIME_RAW_EVENTS_DIR}/{role}.json"
+
+
 def validate_runtime_event_payload(
     payload: dict[str, Any],
     role: str,
     runtime_agent_id: str,
     output_artifact: dict[str, Any],
+    root: Path | None = None,
 ) -> list[str]:
     errors: list[str] = []
     if payload.get("schema_version") != 1:
@@ -208,6 +214,16 @@ def validate_runtime_event_payload(
         errors.append(f"runtime event for {role} missing runtime_provider")
     if not payload.get("completed_at"):
         errors.append(f"runtime event for {role} missing completed_at")
+    raw_event = payload.get("raw_event_artifact") or {}
+    if not raw_event:
+        errors.append(f"runtime event for {role} missing raw_event_artifact")
+    elif root is not None:
+        raw_path = root / raw_event.get("path", "")
+        if not raw_path.exists():
+            errors.append(f"runtime raw event file missing for {role}")
+        else:
+            if sha256_file(raw_path) != raw_event.get("sha256"):
+                errors.append(f"runtime raw event hash mismatch for {role}")
 
     event_output = payload.get("output_artifact") or {}
     for key in ["path", "sha256", "size"]:

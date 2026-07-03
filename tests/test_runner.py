@@ -20,8 +20,6 @@ SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from workflow_runtime import AGENT_ROLES as ROLES  # noqa: E402
-from workflow_runtime import artifact_record, utc_now  # noqa: E402
-
 SOURCE = ROOT / "tests" / "fixtures" / "minimal_source.md"
 
 
@@ -204,28 +202,47 @@ def runtime_id_for(index: int) -> str:
     return f"019f27cd-0000-7000-8000-{index:012d}"
 
 
-def write_runtime_event(workflow: Path, role: str, runtime_agent_id: str, proof_dir: Path) -> Path:
+def write_raw_codex_event(role: str, runtime_agent_id: str, event_dir: Path) -> Path:
     import json
 
-    proof_dir.mkdir(parents=True, exist_ok=True)
-    event_path = proof_dir / f"{role}.event.json"
-    event_payload = {
-        "schema_version": 1,
-        "event_type": "codex.subagent.completed",
-        "runtime_provider": "codex-test-runtime",
-        "runtime_agent_id": runtime_agent_id,
-        "role": role,
-        "completed_at": utc_now(),
-        "output_artifact": artifact_record(workflow / "agent_outputs" / f"{role}.md", workflow),
+    event_dir.mkdir(parents=True, exist_ok=True)
+    event_path = event_dir / f"{role}.raw.json"
+    raw_payload = {
+        "agent_path": runtime_agent_id,
+        "status": {
+            "completed": f"# {role}\n\nfilled\n",
+        },
     }
-    event_path.write_text(json.dumps(event_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    event_path.write_text(json.dumps(raw_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return event_path
+
+
+def adapt_runtime_event(workflow: Path, role: str, runtime_agent_id: str, event_dir: Path) -> Path:
+    raw_path = write_raw_codex_event(role, runtime_agent_id, event_dir)
+    result = run(
+        [
+            sys.executable,
+            "scripts/adapt_codex_subagent_event.py",
+            "--workflow-dir",
+            str(workflow),
+            "--role",
+            role,
+            "--raw-event",
+            str(raw_path),
+            "--runtime-agent-id",
+            runtime_agent_id,
+            "--runtime-provider",
+            "codex-test-runtime",
+        ],
+        check=True,
+    )
+    return Path(result.stdout.strip())
 
 
 def record_all_subagents_with_proofs(workflow: Path, proof_dir: Path) -> None:
     for index, role in enumerate(ROLES, 1):
         runtime_id = runtime_id_for(index)
-        event_path = write_runtime_event(workflow, role, runtime_id, proof_dir)
+        event_path = adapt_runtime_event(workflow, role, runtime_id, proof_dir)
         run(
             [
                 sys.executable,
@@ -353,7 +370,7 @@ def test_subagent_with_event_generates_proof() -> None:
         root = Path(dirname)
         workflow = prepare(root)
         fill_workflow(workflow, agent_mode="subagent")
-        event_path = write_runtime_event(workflow, "strategist", runtime_id_for(1), root / "proofs")
+        event_path = adapt_runtime_event(workflow, "strategist", runtime_id_for(1), root / "proofs")
         result = run(
             [
                 sys.executable,
@@ -371,6 +388,7 @@ def test_subagent_with_event_generates_proof() -> None:
             ],
         )
         assert result.returncode == 0
+        assert (workflow / "runtime_raw_events" / "strategist.json").exists()
         assert (workflow / "runtime_events" / "strategist.json").exists()
         assert (workflow / "runtime_proofs" / "strategist.json").exists()
 
@@ -411,6 +429,45 @@ def test_tampered_runtime_event_after_record_fails() -> None:
         assert "runtime event" in result.stdout
 
 
+def test_tampered_raw_runtime_event_after_record_fails() -> None:
+    with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
+        root = Path(dirname)
+        workflow = prepare(root)
+        fill_workflow(workflow, agent_mode="subagent")
+        record_all_subagents_with_proofs(workflow, root / "proofs")
+        raw = workflow / "runtime_raw_events" / "strategist.json"
+        raw.write_text(raw.read_text(encoding="utf-8").replace("filled", "tampered", 1), encoding="utf-8")
+        result = check_workflow(workflow)
+        assert result.returncode != 0
+        assert "raw event" in result.stdout
+
+
+def test_adapter_rejects_output_that_does_not_contain_completed_text() -> None:
+    with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
+        root = Path(dirname)
+        workflow = prepare(root)
+        fill_workflow(workflow, agent_mode="subagent")
+        raw_path = write_raw_codex_event("strategist", runtime_id_for(1), root / "proofs")
+        output = workflow / "agent_outputs" / "strategist.md"
+        output.write_text("---\nagent: strategist\nmode: subagent\n---\n\nEdited summary only.\n", encoding="utf-8")
+        result = run(
+            [
+                sys.executable,
+                "scripts/adapt_codex_subagent_event.py",
+                "--workflow-dir",
+                str(workflow),
+                "--role",
+                "strategist",
+                "--raw-event",
+                str(raw_path),
+                "--runtime-agent-id",
+                runtime_id_for(1),
+            ],
+        )
+        assert result.returncode != 0
+        assert "paste subagent output verbatim" in result.stderr
+
+
 if __name__ == "__main__":
     for test in [
         test_filled_workflow_without_runner_agent_records_fails,
@@ -426,6 +483,8 @@ if __name__ == "__main__":
         test_subagent_with_runtime_proof_passes,
         test_tampered_runtime_proof_after_record_fails,
         test_tampered_runtime_event_after_record_fails,
+        test_tampered_raw_runtime_event_after_record_fails,
+        test_adapter_rejects_output_that_does_not_contain_completed_text,
     ]:
         test()
     print("runner tests passed")
