@@ -16,6 +16,7 @@ RUN_STATE = "run_state.json"
 RUN_LOG = "logs/run_log.jsonl"
 GATE_RESULT = "gate_result.json"
 RUNTIME_PROOFS_DIR = "runtime_proofs"
+RUNTIME_EVENTS_DIR = "runtime_events"
 AGENT_ROLES = [
     "strategist",
     "interviewer",
@@ -184,12 +185,44 @@ def runtime_proof_relpath(role: str) -> str:
     return f"{RUNTIME_PROOFS_DIR}/{role}.json"
 
 
+def runtime_event_relpath(role: str) -> str:
+    return f"{RUNTIME_EVENTS_DIR}/{role}.json"
+
+
+def validate_runtime_event_payload(
+    payload: dict[str, Any],
+    role: str,
+    runtime_agent_id: str,
+    output_artifact: dict[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    if payload.get("schema_version") != 1:
+        errors.append(f"runtime event for {role} has invalid schema_version")
+    if payload.get("event_type") != "codex.subagent.completed":
+        errors.append(f"runtime event for {role} has invalid event_type")
+    if payload.get("role") != role:
+        errors.append(f"runtime event role mismatch for {role}")
+    if payload.get("runtime_agent_id") != runtime_agent_id:
+        errors.append(f"runtime event runtime_agent_id mismatch for {role}")
+    if not payload.get("runtime_provider"):
+        errors.append(f"runtime event for {role} missing runtime_provider")
+    if not payload.get("completed_at"):
+        errors.append(f"runtime event for {role} missing completed_at")
+
+    event_output = payload.get("output_artifact") or {}
+    for key in ["path", "sha256", "size"]:
+        if event_output.get(key) != output_artifact.get(key):
+            errors.append(f"runtime event output_artifact.{key} mismatch for {role}")
+    return errors
+
+
 def validate_runtime_proof_payload(
     payload: dict[str, Any],
     role: str,
     runtime_agent_id: str,
     task_artifact: dict[str, Any],
     output_artifact: dict[str, Any],
+    runtime_event_artifact: dict[str, Any] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     if payload.get("schema_version") != 1:
@@ -204,6 +237,13 @@ def validate_runtime_proof_payload(
         errors.append(f"runtime proof for {role} missing runtime_provider")
     if not payload.get("created_at"):
         errors.append(f"runtime proof for {role} missing created_at")
+    if runtime_event_artifact is not None:
+        proof_event = payload.get("runtime_event_artifact") or {}
+        if not proof_event:
+            errors.append(f"runtime proof for {role} missing runtime_event_artifact")
+        for key in ["path", "sha256", "size"]:
+            if proof_event.get(key) != runtime_event_artifact.get(key):
+                errors.append(f"runtime proof runtime_event_artifact.{key} mismatch for {role}")
 
     proof_task = payload.get("task_artifact") or {}
     proof_output = payload.get("output_artifact") or {}

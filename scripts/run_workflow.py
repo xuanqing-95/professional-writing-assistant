@@ -25,9 +25,11 @@ from workflow_runtime import (
     new_run_id,
     read_json,
     read_agent_frontmatter,
+    runtime_event_relpath,
     runtime_proof_relpath,
     save_state,
     utc_now,
+    validate_runtime_event_payload,
     validate_runtime_proof_payload,
     write_json,
 )
@@ -48,6 +50,7 @@ DEFAULT_ARTIFACT_PATTERNS = [
     "10_*.md",
     "agent_tasks/*.md",
     "agent_outputs/*.md",
+    "runtime_events/*.json",
     "runtime_proofs/*.json",
     "final_publish_article.md",
 ]
@@ -149,14 +152,33 @@ def command_record_agent(args: argparse.Namespace) -> int:
         )
     output_artifact = artifact_record(output_path, root)
     task_artifact = artifact_record(task_path, root)
+    runtime_event_artifact = None
     runtime_proof_artifact = None
     if args.mode == "subagent":
         if not args.runtime_agent_id:
             raise SystemExit("subagent mode requires --runtime-agent-id from the runtime")
         if not RUNTIME_AGENT_ID_RE.match(args.runtime_agent_id):
             raise SystemExit("subagent --runtime-agent-id must be a UUID-like runtime id")
+        if not args.runtime_event:
+            raise SystemExit("subagent mode requires --runtime-event from the host runtime")
         if not args.runtime_proof:
             raise SystemExit("subagent mode requires --runtime-proof from the host runtime")
+        event_source = Path(args.runtime_event).resolve()
+        if not event_source.exists():
+            raise SystemExit(f"runtime event not found: {event_source}")
+        event_payload = read_json(event_source)
+        event_errors = validate_runtime_event_payload(
+            event_payload,
+            role,
+            args.runtime_agent_id,
+            output_artifact,
+        )
+        if event_errors:
+            raise SystemExit("invalid runtime event:\n- " + "\n- ".join(event_errors))
+        event_target = root / runtime_event_relpath(role)
+        write_json(event_target, event_payload)
+        runtime_event_artifact = artifact_record(event_target, root)
+
         proof_source = Path(args.runtime_proof).resolve()
         if not proof_source.exists():
             raise SystemExit(f"runtime proof not found: {proof_source}")
@@ -167,6 +189,7 @@ def command_record_agent(args: argparse.Namespace) -> int:
             args.runtime_agent_id,
             task_artifact,
             output_artifact,
+            runtime_event_artifact,
         )
         if proof_errors:
             raise SystemExit("invalid runtime proof:\n- " + "\n- ".join(proof_errors))
@@ -178,6 +201,7 @@ def command_record_agent(args: argparse.Namespace) -> int:
         "role": role,
         "mode": args.mode,
         "runtime_agent_id": args.runtime_agent_id or "",
+        "runtime_event_artifact": runtime_event_artifact,
         "runtime_proof_artifact": runtime_proof_artifact,
         "task_artifact": task_artifact,
         "output_artifact": output_artifact,
@@ -302,6 +326,7 @@ def build_parser() -> argparse.ArgumentParser:
     record.add_argument("--role", required=True, choices=AGENT_ROLES)
     record.add_argument("--mode", required=True, choices=VALID_AGENT_MODES)
     record.add_argument("--runtime-agent-id", default="")
+    record.add_argument("--runtime-event", default="", help="Raw JSON event emitted by the host runtime for subagent mode")
     record.add_argument("--runtime-proof", default="", help="JSON proof emitted by the host runtime for subagent mode")
     record.set_defaults(func=command_record_agent)
 

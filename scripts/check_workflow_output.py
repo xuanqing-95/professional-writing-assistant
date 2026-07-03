@@ -16,8 +16,10 @@ from workflow_runtime import (
     iter_log_events,
     read_agent_frontmatter,
     read_json,
+    runtime_event_relpath,
     runtime_proof_relpath,
     sha256_file,
+    validate_runtime_event_payload,
     validate_runtime_proof_payload,
     validate_log_chain,
 )
@@ -95,6 +97,28 @@ def validate_runner_evidence(root: Path, agent_modes: dict[str, str]) -> list[st
         ):
             errors.append(f"subagent output for {role} has invalid runtime_agent_id format")
         if declared_mode == "subagent":
+            event_record = record.get("runtime_event_artifact") or {}
+            if not event_record:
+                errors.append(f"subagent output for {role} has no runtime event artifact")
+            else:
+                expected_event_path = runtime_event_relpath(role)
+                if event_record.get("path") != expected_event_path:
+                    errors.append(f"subagent runtime event path mismatch for {role}")
+                event_path = root / event_record.get("path", "")
+                if not event_path.exists():
+                    errors.append(f"subagent runtime event file missing for {role}")
+                else:
+                    if sha256_file(event_path) != event_record.get("sha256"):
+                        errors.append(f"subagent runtime event hash mismatch for {role}")
+                    event_payload = read_json(event_path)
+                    errors.extend(
+                        validate_runtime_event_payload(
+                            event_payload,
+                            role,
+                            record.get("runtime_agent_id", ""),
+                            record.get("output_artifact", {}),
+                        )
+                    )
             proof_record = record.get("runtime_proof_artifact") or {}
             if not proof_record:
                 errors.append(f"subagent output for {role} has no runtime proof artifact")
@@ -116,6 +140,7 @@ def validate_runner_evidence(root: Path, agent_modes: dict[str, str]) -> list[st
                             record.get("runtime_agent_id", ""),
                             record.get("task_artifact", {}),
                             record.get("output_artifact", {}),
+                            event_record if event_record else None,
                         )
                     )
 

@@ -322,7 +322,7 @@ mode: simulated
 ```
 
 Do not label simulated work as subagent work.
-Subagent mode must later be recorded with a runtime-provided UUID-like agent id and matching runtime proof JSON.
+Subagent mode must later be recorded with a runtime-provided UUID-like agent id, raw runtime event JSON, and matching runtime proof JSON.
 """,
         )
         write(
@@ -706,7 +706,7 @@ This review protects the original meaning. A more polished article is not accept
 - [ ] Read all role files in agents/.
 - [ ] Create or use agent_tasks/*.md.
 - [ ] Fill agent_outputs/*.md with `mode: subagent` or `mode: simulated`.
-- [ ] Record every agent output with `scripts/run_workflow.py record-agent`; subagent records require `--runtime-proof`.
+- [ ] Record every agent output with `scripts/run_workflow.py record-agent`; subagent records require `--runtime-event` and `--runtime-proof`.
 - [ ] Complete 01 intake diagnosis.
 - [ ] Complete 02 strategy brief.
 - [ ] Complete 03 interview gaps.
