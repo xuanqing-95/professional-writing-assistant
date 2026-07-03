@@ -74,6 +74,15 @@ For **Rewrite** and **Full package** requests, do not jump directly to the final
    python3 scripts/adapt_codex_subagent_event.py --workflow-dir <workflow-dir> --role <role> --raw-event <raw-event.json> --runtime-agent-id <agent-id>
    ```
 
+   If the host runtime exposes a reusable subagent command, prefer the supervisor path instead of manually adapting and recording each role:
+
+   ```bash
+   PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
+     python3 scripts/run_host_subagents.py <workflow-dir> --command "<host-command> --role {role} --task '{task}' --output '{output}' --raw-event '{raw_event}'" --require-signature --finalize
+   ```
+
+   Read `references/host_runtime_integration.md` for the host command contract.
+
    For high-assurance runs where the host can sign raw events, require signature verification during adaptation:
 
    ```bash
@@ -271,10 +280,12 @@ Never upgrade simulated review to subagent review after the fact.
 - `references/interview_questions.md`: targeted questions to extract missing material.
 - `references/examples_and_templates.md`: openings, titles, section headings, method components, endings.
 - `references/runtime_proof.md`: runtime proof schema for real subagent outputs.
+- `references/host_runtime_integration.md`: host command contract for automatically running, adapting, recording, and strict-finalizing real subagents.
 - `output_templates/`: ready formats for review reports, rewrite plans, and final article packages.
 - `scripts/run_article_workflow.py`: creates the required workflow packet from a Markdown source draft.
 - `scripts/run_workflow.py`: auditable Runner that prepares workflow packets, records agent outputs, writes `run_state.json`, appends `logs/run_log.jsonl`, and blocks finalization unless checks pass.
 - `scripts/adapt_codex_subagent_event.py`: converts a Codex subagent raw completion export into a runner runtime event and archives the raw event.
+- `scripts/run_host_subagents.py`: calls a host-provided subagent command for each expert role, adapts raw events, records agent outputs, and can strict-finalize signed runs.
 - `scripts/workflow_runtime.py`: shared hash, event-log, and state helpers for Runner evidence.
 - `scripts/extract_author_voice.py`: extracts a source-local voice seed so author style comes from the current source, not examples or prior users.
 - `scripts/check_workflow_output.py`: validates that all required packet files are filled before delivery.

@@ -538,6 +538,79 @@ def test_adapter_rejects_unsigned_raw_event_when_signature_required() -> None:
         assert "missing runtime_signature" in result.stderr
 
 
+def host_subagent_command(sign: bool = True) -> str:
+    command = (
+        f"{sys.executable} tests/fixtures/fake_host_subagent.py "
+        "--role {role} --output {output} --raw-event {raw_event}"
+    )
+    if sign:
+        command += " --sign"
+    return command
+
+
+def test_host_supervisor_signed_subagents_strict_finalize_passes() -> None:
+    with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
+        root = Path(dirname)
+        workflow = prepare(root)
+        fill_workflow(workflow, agent_mode="subagent")
+        result = run(
+            [
+                sys.executable,
+                "scripts/run_host_subagents.py",
+                str(workflow),
+                "--command",
+                host_subagent_command(sign=True),
+                "--runtime-provider",
+                "fake-host-runtime",
+                "--require-signature",
+                "--finalize",
+            ],
+            env={"PWA_RUNTIME_SIGNING_KEY": SIGNING_KEY},
+        )
+        assert result.returncode == 0
+        assert "Finalized workflow" in result.stdout
+        assert (workflow / "runtime_proofs" / "strategist.json").exists()
+        assert (workflow / "gate_result.json").exists()
+
+
+def test_host_supervisor_rejects_unsigned_subagent_when_signature_required() -> None:
+    with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
+        root = Path(dirname)
+        workflow = prepare(root)
+        fill_workflow(workflow, agent_mode="subagent")
+        result = run(
+            [
+                sys.executable,
+                "scripts/run_host_subagents.py",
+                str(workflow),
+                "--command",
+                host_subagent_command(sign=False),
+                "--runtime-provider",
+                "fake-host-runtime",
+                "--require-signature",
+            ],
+            env={"PWA_RUNTIME_SIGNING_KEY": SIGNING_KEY},
+        )
+        assert result.returncode != 0
+        assert "missing runtime_signature" in result.stderr
+
+
+def test_host_supervisor_requires_command() -> None:
+    with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
+        root = Path(dirname)
+        workflow = prepare(root)
+        result = run(
+            [
+                sys.executable,
+                "scripts/run_host_subagents.py",
+                str(workflow),
+            ],
+            env={"PWA_SUBAGENT_COMMAND": ""},
+        )
+        assert result.returncode != 0
+        assert "missing --command" in result.stderr
+
+
 def test_tampered_runtime_proof_after_record_fails() -> None:
     with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
         root = Path(dirname)
@@ -621,6 +694,9 @@ if __name__ == "__main__":
         test_signed_subagent_workflow_fails_strict_with_wrong_key,
         test_signed_subagent_workflow_strict_finalize_passes,
         test_adapter_rejects_unsigned_raw_event_when_signature_required,
+        test_host_supervisor_signed_subagents_strict_finalize_passes,
+        test_host_supervisor_rejects_unsigned_subagent_when_signature_required,
+        test_host_supervisor_requires_command,
         test_tampered_runtime_proof_after_record_fails,
         test_tampered_runtime_event_after_record_fails,
         test_tampered_raw_runtime_event_after_record_fails,

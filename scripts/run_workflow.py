@@ -51,6 +51,7 @@ DEFAULT_ARTIFACT_PATTERNS = [
     "10_*.md",
     "agent_tasks/*.md",
     "agent_outputs/*.md",
+    "runtime_host_events/*.json",
     "runtime_raw_events/*.json",
     "runtime_event_imports/*.json",
     "runtime_events/*.json",

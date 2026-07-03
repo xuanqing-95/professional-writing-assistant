@@ -58,6 +58,8 @@ PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
     --require-signature
 ```
 
+If a host runtime can expose a reusable command that writes the agent output and raw event, use the supervisor instead of manually adapting each role. See `references/host_runtime_integration.md`.
+
 ## Adapted Runtime Event File
 
 The adapter creates one runner event file per subagent role:

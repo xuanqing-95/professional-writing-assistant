@@ -91,6 +91,19 @@ python3 scripts/run_workflow.py record-agent path/to/workflow-dir \
   --runtime-event <generated-event.json>
 ```
 
+If your host runtime can launch real subagents through a command, use the supervisor to avoid manual adapter/record steps:
+
+```bash
+PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
+  python3 scripts/run_host_subagents.py path/to/workflow-dir \
+    --command "<host-command> --role {role} --task '{task}' --output '{output}' --raw-event '{raw_event}'" \
+    --runtime-provider codex \
+    --require-signature \
+    --finalize
+```
+
+See `references/host_runtime_integration.md` for the host command contract.
+
 Check and finalize:
 
 ```bash
@@ -117,6 +130,7 @@ The runner writes:
 - `runtime_raw_events/<role>.json`: archived raw host-runtime event for a completed subagent role.
 - `runtime_events/<role>.json`: adapted runner runtime event.
 - `runtime_proofs/<role>.json`: runner-generated proof artifact that binds a subagent role to the runtime id, task hash, output hash, and raw event hash.
+- `runtime_host_events/<role>.json`: host-supervisor input event before the adapter archives it.
 - `gate_result.json`: final checker result after `check` or `finalize`.
 
 `mode: subagent` in an agent output is not trusted by itself. The checker requires matching runner evidence, a runtime agent id, a raw runtime event artifact, and a runtime proof artifact.
