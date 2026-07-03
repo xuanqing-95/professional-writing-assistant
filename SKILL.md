@@ -74,6 +74,13 @@ For **Rewrite** and **Full package** requests, do not jump directly to the final
    python3 scripts/adapt_codex_subagent_event.py --workflow-dir <workflow-dir> --role <role> --raw-event <raw-event.json> --runtime-agent-id <agent-id>
    ```
 
+   For high-assurance runs where the host can sign raw events, require signature verification during adaptation:
+
+   ```bash
+   PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
+     python3 scripts/adapt_codex_subagent_event.py --workflow-dir <workflow-dir> --role <role> --raw-event <raw-event.json> --runtime-agent-id <agent-id> --require-signature
+   ```
+
    Then record the subagent output with the generated event path printed by the adapter:
 
    ```bash
@@ -89,9 +96,16 @@ For **Rewrite** and **Full package** requests, do not jump directly to the final
    python3 scripts/run_workflow.py finalize <workflow-dir>
    ```
 
+   For high-assurance runs, require every expert output to be a signed real subagent event:
+
+   ```bash
+   PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
+     python3 scripts/run_workflow.py finalize <workflow-dir> --require-signed-runtime-events
+   ```
+
 11. Only then provide the final response. If the checker fails, complete the missing artifacts first. If the checker warns about simulated expert output, disclose that in the final response.
 
-Trust boundary: the local runner verifies workflow artifacts, hashes, modes, UUID-like runtime ids, archived `runtime_raw_events/<role>.json`, adapted `runtime_events/<role>.json`, and runner-generated `runtime_proofs/<role>.json` files that bind each subagent role to the task, output, and raw runtime event hashes. It can catch missing steps, ordinary tampering, bare UUID claims, edited subagent output, and detached proof claims. It is not a cryptographic audit system. Strong proof of real subagent execution requires the host runtime to automatically provide or sign the subagent execution record.
+Trust boundary: the local runner verifies workflow artifacts, hashes, modes, UUID-like runtime ids, archived `runtime_raw_events/<role>.json`, adapted `runtime_events/<role>.json`, and runner-generated `runtime_proofs/<role>.json` files that bind each subagent role to the task, output, and raw runtime event hashes. It can catch missing steps, ordinary tampering, bare UUID claims, edited subagent output, detached proof claims, and unsigned subagent claims when `--require-signed-runtime-events` is used. Strong proof still depends on the host runtime automatically creating and signing the raw subagent event; the Skill cannot make a host spawn or sign agents by itself.
 
 In the final response, summarize the workflow directory and show this compact working trail before the final article:
 

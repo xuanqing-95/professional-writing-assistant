@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -12,11 +13,13 @@ from typing import Any
 
 from workflow_runtime import (
     RUNTIME_AGENT_ID_RE,
+    RUNTIME_SIGNATURE_FIELD,
     artifact_record,
     read_agent_frontmatter,
     read_json,
     runtime_raw_event_relpath,
     utc_now,
+    verify_runtime_payload_signature,
     write_json,
 )
 
@@ -81,6 +84,23 @@ def command_adapt(args: argparse.Namespace) -> int:
         raise SystemExit(f"agent output for {role} must use mode: subagent")
 
     raw_payload = read_json(raw_source)
+    signature_errors: list[str] = []
+    signature_metadata: dict[str, Any] = {
+        "raw_event_signature_verified": False,
+    }
+    if args.require_signature:
+        signature_key = os.environ.get(args.signature_key_env, "")
+        if not signature_key:
+            raise SystemExit(f"missing signature key env var: {args.signature_key_env}")
+        signature_errors = verify_runtime_payload_signature(raw_payload, signature_key)
+        if signature_errors:
+            raise SystemExit("invalid raw runtime event signature:\n- " + "\n- ".join(signature_errors))
+        signature = raw_payload.get(RUNTIME_SIGNATURE_FIELD) or {}
+        signature_metadata = {
+            "raw_event_signature_verified": True,
+            "raw_event_signature_alg": signature.get("alg", ""),
+            "raw_event_signature_key_id": signature.get("key_id", ""),
+        }
     runtime_agent_id = args.runtime_agent_id or extract_runtime_agent_id(raw_payload)
     if not RUNTIME_AGENT_ID_RE.match(runtime_agent_id):
         raise SystemExit("runtime agent id must be UUID-like")
@@ -99,6 +119,7 @@ def command_adapt(args: argparse.Namespace) -> int:
         "completed_at": args.completed_at or utc_now(),
         "raw_event_artifact": raw_artifact,
         "output_artifact": artifact_record(output_path, root),
+        **signature_metadata,
     }
 
     out_path = Path(args.out).resolve() if args.out else root / "runtime_event_imports" / f"{role}.json"
@@ -116,6 +137,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--runtime-provider", default="codex")
     parser.add_argument("--completed-at", default="")
     parser.add_argument("--out", default="")
+    parser.add_argument(
+        "--require-signature",
+        action="store_true",
+        help="Require the raw event to contain a valid host signature",
+    )
+    parser.add_argument(
+        "--signature-key-env",
+        default="PWA_RUNTIME_SIGNING_KEY",
+        help="Environment variable containing the host signing key",
+    )
     return parser
 
 

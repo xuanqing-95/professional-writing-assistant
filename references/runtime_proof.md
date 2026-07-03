@@ -30,6 +30,34 @@ For Codex subagent notifications, the raw event may look like:
 
 The adapter requires the `agent_outputs/<role>.md` file to contain the raw completed text. Paste the subagent output verbatim after the frontmatter; summarize or edit later in workflow review files.
 
+For high-assurance hosts, sign the raw event before handing it to the adapter. The signature field is named `runtime_signature` and signs the canonical JSON payload with that field excluded:
+
+```json
+{
+  "agent_path": "019f27cd-0000-7000-8000-000000000001",
+  "status": {
+    "completed": "# strategist\n\n..."
+  },
+  "runtime_signature": {
+    "alg": "hmac-sha256",
+    "key_id": "host-key-2026-07",
+    "value": "<hex hmac>"
+  }
+}
+```
+
+Use the adapter with signature verification:
+
+```bash
+PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
+  python3 scripts/adapt_codex_subagent_event.py \
+    --workflow-dir <workflow-dir> \
+    --role <role> \
+    --raw-event <raw-event.json> \
+    --runtime-agent-id <agent-id> \
+    --require-signature
+```
+
 ## Adapted Runtime Event File
 
 The adapter creates one runner event file per subagent role:
@@ -53,6 +81,9 @@ The event records what the host runtime says actually completed and links back t
     "sha256": "...",
     "size": 999
   },
+  "raw_event_signature_verified": true,
+  "raw_event_signature_alg": "hmac-sha256",
+  "raw_event_signature_key_id": "host-key-2026-07",
   "output_artifact": {
     "path": "agent_outputs/strategist.md",
     "sha256": "...",
@@ -89,6 +120,14 @@ python3 scripts/run_workflow.py record-agent <workflow-dir> \
   --runtime-event <event.json>
 ```
 
+For strict publication runs, finalize with signed runtime events required:
+
+```bash
+PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
+  python3 scripts/run_workflow.py finalize <workflow-dir> \
+    --require-signed-runtime-events
+```
+
 ## Proof Schema
 
 ```json
@@ -120,6 +159,6 @@ python3 scripts/run_workflow.py record-agent <workflow-dir> \
 
 ## Trust Boundary
 
-This proof is stronger than a bare `runtime_agent_id` because it binds the raw runtime event to the task and output hashes. It is still not a cryptographic signature.
+This proof is stronger than a bare `runtime_agent_id` because it binds the raw runtime event to the task and output hashes. In strict mode, the checker also re-verifies the archived raw event signature.
 
-For high-assurance environments, the host runtime should sign the proof or write it to an append-only external event store.
+The remaining trust boundary is the host runtime. The Skill can verify a signed raw event, but it cannot force the host to spawn subagents or protect the signing key. For stronger audit, let the host write signed events to an append-only external event store.

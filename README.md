@@ -69,6 +69,18 @@ python3 scripts/adapt_codex_subagent_event.py \
   --runtime-agent-id <agent-id>
 ```
 
+For a high-assurance host that signs raw subagent events, require signature verification during adaptation:
+
+```bash
+PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
+  python3 scripts/adapt_codex_subagent_event.py \
+    --workflow-dir path/to/workflow-dir \
+    --role fidelity_reviewer \
+    --raw-event path/to/raw-subagent-event.json \
+    --runtime-agent-id <agent-id> \
+    --require-signature
+```
+
 Then record the subagent output with the generated event path printed by the adapter. Do not invent this id or event manually. If the runtime cannot provide a real UUID-like agent id and raw event, use `--mode simulated`.
 
 ```bash
@@ -84,6 +96,14 @@ Check and finalize:
 ```bash
 python3 scripts/run_workflow.py check path/to/workflow-dir
 python3 scripts/run_workflow.py finalize path/to/workflow-dir
+```
+
+For strict publication runs where every expert must be a signed real subagent:
+
+```bash
+PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
+  python3 scripts/run_workflow.py finalize path/to/workflow-dir \
+    --require-signed-runtime-events
 ```
 
 Only publish or share the final article after finalize passes.
@@ -105,7 +125,8 @@ Current trust levels:
 
 - `simulated`: recorded and reproducible, but not independent expert execution.
 - `subagent`: requires matching runner evidence, a UUID-like runtime agent id, an archived raw runtime event, an adapted runtime event, and a runner-generated proof file bound to the task/output/event hashes.
-- The local runner is not a cryptographic audit service. It catches missing records, mode mismatches, hash changes, source changes, bare UUID claims, detached proof claims, event tampering, and proof tampering; strong proof still requires the host runtime to write signed or otherwise verifiable subagent execution records.
+- `signed subagent`: requires the host raw event to include a valid `runtime_signature` and requires `finalize --require-signed-runtime-events`.
+- The local runner catches missing records, mode mismatches, hash changes, source changes, bare UUID claims, detached proof claims, event tampering, proof tampering, and unsigned events in strict mode. Strong proof still requires the host runtime to automatically write and sign subagent execution records.
 
 ## Design Principles
 

@@ -7,6 +7,7 @@ exercise the same CLI path users run.
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -19,8 +20,9 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
-from workflow_runtime import AGENT_ROLES as ROLES  # noqa: E402
+from workflow_runtime import AGENT_ROLES as ROLES, sign_runtime_payload  # noqa: E402
 SOURCE = ROOT / "tests" / "fixtures" / "minimal_source.md"
+SIGNING_KEY = "test-host-signing-key"
 
 
 ARTICLE = """# 我第一次用 AI 做项目复盘
@@ -41,8 +43,16 @@ ARTICLE = """# 我第一次用 AI 做项目复盘
 """
 
 
-def run(command: list[str], cwd: Path = ROOT, check: bool = False) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, cwd=cwd, text=True, capture_output=True, check=check)
+def run(
+    command: list[str],
+    cwd: Path = ROOT,
+    check: bool = False,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    full_env = os.environ.copy()
+    if env:
+        full_env.update(env)
+    return subprocess.run(command, cwd=cwd, text=True, capture_output=True, check=check, env=full_env)
 
 
 def prepare(tmp: Path) -> Path:
@@ -129,6 +139,19 @@ def check_workflow(workflow: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+def check_workflow_strict(workflow: Path, signature_key: str = SIGNING_KEY) -> subprocess.CompletedProcess[str]:
+    return run(
+        [
+            sys.executable,
+            "scripts/check_workflow_output.py",
+            str(workflow),
+            "--require-runner",
+            "--require-signed-runtime-events",
+        ],
+        env={"PWA_RUNTIME_SIGNING_KEY": signature_key},
+    )
+
+
 def test_filled_workflow_without_runner_agent_records_fails() -> None:
     with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
         workflow = prepare(Path(dirname))
@@ -202,7 +225,13 @@ def runtime_id_for(index: int) -> str:
     return f"019f27cd-0000-7000-8000-{index:012d}"
 
 
-def write_raw_codex_event(role: str, runtime_agent_id: str, event_dir: Path) -> Path:
+def write_raw_codex_event(
+    role: str,
+    runtime_agent_id: str,
+    event_dir: Path,
+    signed: bool = False,
+    signing_key: str = SIGNING_KEY,
+) -> Path:
     import json
 
     event_dir.mkdir(parents=True, exist_ok=True)
@@ -213,36 +242,64 @@ def write_raw_codex_event(role: str, runtime_agent_id: str, event_dir: Path) -> 
             "completed": f"# {role}\n\nfilled\n",
         },
     }
+    if signed:
+        raw_payload["runtime_signature"] = sign_runtime_payload(
+            raw_payload,
+            signing_key,
+            key_id="test-key",
+        )
     event_path.write_text(json.dumps(raw_payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return event_path
 
 
-def adapt_runtime_event(workflow: Path, role: str, runtime_agent_id: str, event_dir: Path) -> Path:
-    raw_path = write_raw_codex_event(role, runtime_agent_id, event_dir)
-    result = run(
-        [
-            sys.executable,
-            "scripts/adapt_codex_subagent_event.py",
-            "--workflow-dir",
-            str(workflow),
-            "--role",
-            role,
-            "--raw-event",
-            str(raw_path),
-            "--runtime-agent-id",
-            runtime_agent_id,
-            "--runtime-provider",
-            "codex-test-runtime",
-        ],
-        check=True,
-    )
+def adapt_runtime_event(
+    workflow: Path,
+    role: str,
+    runtime_agent_id: str,
+    event_dir: Path,
+    signed: bool = False,
+    require_signature: bool = False,
+    signing_key: str = SIGNING_KEY,
+) -> Path:
+    raw_path = write_raw_codex_event(role, runtime_agent_id, event_dir, signed=signed, signing_key=signing_key)
+    command = [
+        sys.executable,
+        "scripts/adapt_codex_subagent_event.py",
+        "--workflow-dir",
+        str(workflow),
+        "--role",
+        role,
+        "--raw-event",
+        str(raw_path),
+        "--runtime-agent-id",
+        runtime_agent_id,
+        "--runtime-provider",
+        "codex-test-runtime",
+    ]
+    env = None
+    if require_signature:
+        command.append("--require-signature")
+        env = {"PWA_RUNTIME_SIGNING_KEY": signing_key}
+    result = run(command, check=True, env=env)
     return Path(result.stdout.strip())
 
 
-def record_all_subagents_with_proofs(workflow: Path, proof_dir: Path) -> None:
+def record_all_subagents_with_proofs(
+    workflow: Path,
+    proof_dir: Path,
+    signed: bool = False,
+    require_signature: bool = False,
+) -> None:
     for index, role in enumerate(ROLES, 1):
         runtime_id = runtime_id_for(index)
-        event_path = adapt_runtime_event(workflow, role, runtime_id, proof_dir)
+        event_path = adapt_runtime_event(
+            workflow,
+            role,
+            runtime_id,
+            proof_dir,
+            signed=signed,
+            require_signature=require_signature,
+        )
         run(
             [
                 sys.executable,
@@ -403,6 +460,84 @@ def test_subagent_with_runtime_proof_passes() -> None:
         assert result.returncode == 0
 
 
+def test_unsigned_subagent_workflow_fails_strict_signature_gate() -> None:
+    with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
+        root = Path(dirname)
+        workflow = prepare(root)
+        fill_workflow(workflow, agent_mode="subagent")
+        record_all_subagents_with_proofs(workflow, root / "proofs")
+        result = check_workflow_strict(workflow)
+        assert result.returncode != 0
+        assert "lacks verified raw event signature" in result.stdout
+
+
+def test_signed_subagent_workflow_passes_strict_signature_gate() -> None:
+    with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
+        root = Path(dirname)
+        workflow = prepare(root)
+        fill_workflow(workflow, agent_mode="subagent")
+        record_all_subagents_with_proofs(workflow, root / "proofs", signed=True, require_signature=True)
+        result = check_workflow_strict(workflow)
+        assert result.returncode == 0
+
+
+def test_signed_subagent_workflow_fails_strict_with_wrong_key() -> None:
+    with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
+        root = Path(dirname)
+        workflow = prepare(root)
+        fill_workflow(workflow, agent_mode="subagent")
+        record_all_subagents_with_proofs(workflow, root / "proofs", signed=True, require_signature=True)
+        result = check_workflow_strict(workflow, signature_key="wrong-key")
+        assert result.returncode != 0
+        assert "signature mismatch" in result.stdout
+
+
+def test_signed_subagent_workflow_strict_finalize_passes() -> None:
+    with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
+        root = Path(dirname)
+        workflow = prepare(root)
+        fill_workflow(workflow, agent_mode="subagent")
+        record_all_subagents_with_proofs(workflow, root / "proofs", signed=True, require_signature=True)
+        result = run(
+            [
+                sys.executable,
+                "scripts/run_workflow.py",
+                "finalize",
+                str(workflow),
+                "--require-signed-runtime-events",
+            ],
+            env={"PWA_RUNTIME_SIGNING_KEY": SIGNING_KEY},
+        )
+        assert result.returncode == 0
+        assert "Finalized workflow" in result.stdout
+
+
+def test_adapter_rejects_unsigned_raw_event_when_signature_required() -> None:
+    with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
+        root = Path(dirname)
+        workflow = prepare(root)
+        fill_workflow(workflow, agent_mode="subagent")
+        raw_path = write_raw_codex_event("strategist", runtime_id_for(1), root / "proofs")
+        result = run(
+            [
+                sys.executable,
+                "scripts/adapt_codex_subagent_event.py",
+                "--workflow-dir",
+                str(workflow),
+                "--role",
+                "strategist",
+                "--raw-event",
+                str(raw_path),
+                "--runtime-agent-id",
+                runtime_id_for(1),
+                "--require-signature",
+            ],
+            env={"PWA_RUNTIME_SIGNING_KEY": SIGNING_KEY},
+        )
+        assert result.returncode != 0
+        assert "missing runtime_signature" in result.stderr
+
+
 def test_tampered_runtime_proof_after_record_fails() -> None:
     with tempfile.TemporaryDirectory(prefix="pwa-runner-test-") as dirname:
         root = Path(dirname)
@@ -481,6 +616,11 @@ if __name__ == "__main__":
         test_claimed_subagent_with_uuid_runtime_id_without_proof_fails,
         test_subagent_with_event_generates_proof,
         test_subagent_with_runtime_proof_passes,
+        test_unsigned_subagent_workflow_fails_strict_signature_gate,
+        test_signed_subagent_workflow_passes_strict_signature_gate,
+        test_signed_subagent_workflow_fails_strict_with_wrong_key,
+        test_signed_subagent_workflow_strict_finalize_passes,
+        test_adapter_rejects_unsigned_raw_event_when_signature_required,
         test_tampered_runtime_proof_after_record_fails,
         test_tampered_runtime_event_after_record_fails,
         test_tampered_raw_runtime_event_after_record_fails,

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -22,6 +23,7 @@ from workflow_runtime import (
     validate_runtime_event_payload,
     validate_runtime_proof_payload,
     validate_log_chain,
+    verify_runtime_payload_signature,
 )
 
 
@@ -41,7 +43,12 @@ FIDELITY_PASS_RE = re.compile(r"\bpass\b|通过|无实质语义漂移", re.IGNOR
 FIDELITY_BLOCK_RE = re.compile(r"needs revision|blocked|不通过|需要修订|待作者确认", re.IGNORECASE)
 
 
-def validate_runner_evidence(root: Path, agent_modes: dict[str, str]) -> list[str]:
+def validate_runner_evidence(
+    root: Path,
+    agent_modes: dict[str, str],
+    require_signed_runtime_events: bool = False,
+    signature_key: str = "",
+) -> list[str]:
     errors: list[str] = []
     state_path = root / "run_state.json"
     log_path = root / "logs" / "run_log.jsonl"
@@ -90,6 +97,8 @@ def validate_runner_evidence(root: Path, agent_modes: dict[str, str]) -> list[st
         ]
         if not matching_events:
             errors.append(f"runner log missing matching agent_output_recorded event for {role}")
+        if require_signed_runtime_events and declared_mode != "subagent":
+            errors.append(f"signed runtime events require subagent output for {role}")
         if declared_mode == "subagent" and not record.get("runtime_agent_id"):
             errors.append(f"subagent output for {role} has no runtime_agent_id")
         if declared_mode == "subagent" and record.get("runtime_agent_id") and not RUNTIME_AGENT_ID_RE.match(
@@ -120,6 +129,17 @@ def validate_runner_evidence(root: Path, agent_modes: dict[str, str]) -> list[st
                             root,
                         )
                     )
+                    if require_signed_runtime_events:
+                        if event_payload.get("raw_event_signature_verified") is not True:
+                            errors.append(f"subagent runtime event for {role} lacks verified raw event signature")
+                        if not signature_key:
+                            errors.append("missing signature key for signed runtime event verification")
+                        raw_record = event_payload.get("raw_event_artifact") or {}
+                        raw_path = root / raw_record.get("path", "")
+                        if raw_path.exists() and signature_key:
+                            raw_payload = read_json(raw_path)
+                            signature_errors = verify_runtime_payload_signature(raw_payload, signature_key)
+                            errors.extend([f"{role}: {error}" for error in signature_errors])
             proof_record = record.get("runtime_proof_artifact") or {}
             if not proof_record:
                 errors.append(f"subagent output for {role} has no runtime proof artifact")
@@ -155,6 +175,16 @@ def main() -> int:
         "--require-runner",
         action="store_true",
         help="Require run_state.json and logs/run_log.jsonl provenance evidence",
+    )
+    parser.add_argument(
+        "--require-signed-runtime-events",
+        action="store_true",
+        help="Require every expert output to be a subagent output backed by a valid signed raw runtime event",
+    )
+    parser.add_argument(
+        "--signature-key-env",
+        default="PWA_RUNTIME_SIGNING_KEY",
+        help="Environment variable containing the host signing key for strict runtime event checks",
     )
     args = parser.parse_args()
 
@@ -198,8 +228,16 @@ def main() -> int:
                 if mode == "simulated":
                     print(f"WARN simulated expert output: {rel}")
 
-    if args.require_runner or (root / "run_state.json").exists():
-        errors.extend(validate_runner_evidence(root, agent_modes))
+    if args.require_runner or args.require_signed_runtime_events or (root / "run_state.json").exists():
+        signature_key = os.environ.get(args.signature_key_env, "") if args.require_signed_runtime_events else ""
+        errors.extend(
+            validate_runner_evidence(
+                root,
+                agent_modes,
+                require_signed_runtime_events=args.require_signed_runtime_events,
+                signature_key=signature_key,
+            )
+        )
 
     final_path = root / "09_final_article.md"
     source_image_count = int(manifest.get("image_count") or 0)

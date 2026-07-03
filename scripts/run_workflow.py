@@ -227,18 +227,31 @@ def command_record_agent(args: argparse.Namespace) -> int:
     return 0
 
 
-def run_checker(root: Path, require_runner: bool) -> subprocess.CompletedProcess[str]:
+def run_checker(
+    root: Path,
+    require_runner: bool,
+    require_signed_runtime_events: bool = False,
+    signature_key_env: str = "PWA_RUNTIME_SIGNING_KEY",
+) -> subprocess.CompletedProcess[str]:
     checker = Path(__file__).with_name("check_workflow_output.py")
     command = [sys.executable, str(checker), str(root)]
     if require_runner:
         command.append("--require-runner")
+    if require_signed_runtime_events:
+        command.append("--require-signed-runtime-events")
+        command.extend(["--signature-key-env", signature_key_env])
     return subprocess.run(command, text=True, capture_output=True, check=False)
 
 
 def command_check(args: argparse.Namespace) -> int:
     root = Path(args.workflow_dir).resolve()
     state = load_state(root)
-    result = run_checker(root, require_runner=True)
+    result = run_checker(
+        root,
+        require_runner=True,
+        require_signed_runtime_events=args.require_signed_runtime_events,
+        signature_key_env=args.signature_key_env,
+    )
     if result.stdout.strip():
         print(result.stdout.strip())
     if result.stderr.strip():
@@ -247,6 +260,7 @@ def command_check(args: argparse.Namespace) -> int:
         "status": "pass" if result.returncode == 0 else "fail",
         "exit_code": result.returncode,
         "checked_at": utc_now(),
+        "require_signed_runtime_events": args.require_signed_runtime_events,
     }
     state["gate_result"] = gate
     state["status"] = "checked_pass" if result.returncode == 0 else "checked_fail"
@@ -268,7 +282,12 @@ def command_check(args: argparse.Namespace) -> int:
 def command_finalize(args: argparse.Namespace) -> int:
     root = Path(args.workflow_dir).resolve()
     state = load_state(root)
-    result = run_checker(root, require_runner=True)
+    result = run_checker(
+        root,
+        require_runner=True,
+        require_signed_runtime_events=args.require_signed_runtime_events,
+        signature_key_env=args.signature_key_env,
+    )
     if result.stdout.strip():
         print(result.stdout.strip())
     if result.stderr.strip():
@@ -279,6 +298,7 @@ def command_finalize(args: argparse.Namespace) -> int:
             "status": "fail",
             "exit_code": result.returncode,
             "checked_at": utc_now(),
+            "require_signed_runtime_events": args.require_signed_runtime_events,
         }
         save_state(root, state)
         append_event(root, "finalize_blocked", {"run_id": state.get("run_id"), "exit_code": result.returncode})
@@ -291,6 +311,7 @@ def command_finalize(args: argparse.Namespace) -> int:
         "exit_code": 0,
         "checked_at": utc_now(),
         "final_artifact": final_artifact,
+        "require_signed_runtime_events": args.require_signed_runtime_events,
     }
     state["status"] = "finalized"
     state["finalized"] = True
@@ -337,10 +358,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     check = sub.add_parser("check", help="Run checker with runner evidence required")
     check.add_argument("workflow_dir")
+    check.add_argument("--require-signed-runtime-events", action="store_true")
+    check.add_argument("--signature-key-env", default="PWA_RUNTIME_SIGNING_KEY")
     check.set_defaults(func=command_check)
 
     finalize = sub.add_parser("finalize", help="Finalize only after all gates pass")
     finalize.add_argument("workflow_dir")
+    finalize.add_argument("--require-signed-runtime-events", action="store_true")
+    finalize.add_argument("--signature-key-env", default="PWA_RUNTIME_SIGNING_KEY")
     finalize.set_defaults(func=command_finalize)
 
     return parser

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import re
 import uuid
@@ -18,6 +19,8 @@ GATE_RESULT = "gate_result.json"
 RUNTIME_PROOFS_DIR = "runtime_proofs"
 RUNTIME_EVENTS_DIR = "runtime_events"
 RUNTIME_RAW_EVENTS_DIR = "runtime_raw_events"
+RUNTIME_SIGNATURE_FIELD = "runtime_signature"
+RUNTIME_SIGNATURE_ALG = "hmac-sha256"
 AGENT_ROLES = [
     "strategist",
     "interviewer",
@@ -53,6 +56,40 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def canonical_json_for_signature(payload: dict[str, Any]) -> str:
+    unsigned_payload = {key: value for key, value in payload.items() if key != RUNTIME_SIGNATURE_FIELD}
+    return json.dumps(unsigned_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def sign_runtime_payload(payload: dict[str, Any], key: str, key_id: str = "") -> dict[str, str]:
+    digest = hmac.new(
+        key.encode("utf-8"),
+        canonical_json_for_signature(payload).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return {
+        "alg": RUNTIME_SIGNATURE_ALG,
+        "key_id": key_id,
+        "value": digest,
+    }
+
+
+def verify_runtime_payload_signature(payload: dict[str, Any], key: str) -> list[str]:
+    errors: list[str] = []
+    signature = payload.get(RUNTIME_SIGNATURE_FIELD)
+    if not isinstance(signature, dict):
+        return [f"raw runtime event missing {RUNTIME_SIGNATURE_FIELD}"]
+    if signature.get("alg") != RUNTIME_SIGNATURE_ALG:
+        errors.append("raw runtime event signature has invalid alg")
+    recorded = signature.get("value")
+    if not isinstance(recorded, str) or not recorded:
+        errors.append("raw runtime event signature missing value")
+    expected = sign_runtime_payload(payload, key, str(signature.get("key_id") or "")).get("value", "")
+    if recorded and not hmac.compare_digest(recorded, expected):
+        errors.append("raw runtime event signature mismatch")
+    return errors
 
 
 def read_json(path: Path) -> dict[str, Any]:
