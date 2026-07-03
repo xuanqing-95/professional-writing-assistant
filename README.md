@@ -31,6 +31,9 @@ Use this Skill when you want to:
 - `references/`: strategy, structure, platform adaptation, source fidelity, author voice, and quality references.
 - `agents/`: role prompts for strategy, interviewing, writing, narrative, fidelity, credibility, and review.
 - `scripts/run_article_workflow.py`: creates the workflow packet.
+- `scripts/run_workflow.py`: prepares, records, checks, and finalizes auditable workflow runs.
+- `scripts/run_host_subagents.py`: runs host-provided subagent commands and records signed evidence.
+- `scripts/cli_subagent_command.py`: wraps a stdin/stdout model CLI as a host subagent command.
 - `scripts/check_workflow_output.py`: validates the workflow before delivery.
 - `scripts/check_author_voice.py`: checks whether the rewrite preserves the author's voice.
 - `scripts/check_article_readability.py`: checks whether the publish body reads like an article instead of a work note.
@@ -103,6 +106,18 @@ PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
 ```
 
 See `references/host_runtime_integration.md` for the host command contract.
+
+For CLI-based runtimes that read stdin and return Markdown on stdout, wrap the CLI with:
+
+```bash
+python3 scripts/cli_subagent_command.py \
+  --role {role} \
+  --task '{task}' \
+  --output '{output}' \
+  --raw-event '{raw_event}' \
+  --command '<model-cli-command>' \
+  --sign
+```
 
 Check and finalize:
 

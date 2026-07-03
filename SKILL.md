@@ -81,7 +81,7 @@ For **Rewrite** and **Full package** requests, do not jump directly to the final
      python3 scripts/run_host_subagents.py <workflow-dir> --command "<host-command> --role {role} --task '{task}' --output '{output}' --raw-event '{raw_event}'" --require-signature --finalize
    ```
 
-   Read `references/host_runtime_integration.md` for the host command contract.
+   Read `references/host_runtime_integration.md` for the host command contract. For CLI-based runtimes that read stdin and return Markdown on stdout, use `scripts/cli_subagent_command.py` as the host command adapter.
 
    For high-assurance runs where the host can sign raw events, require signature verification during adaptation:
 
@@ -286,6 +286,7 @@ Never upgrade simulated review to subagent review after the fact.
 - `scripts/run_workflow.py`: auditable Runner that prepares workflow packets, records agent outputs, writes `run_state.json`, appends `logs/run_log.jsonl`, and blocks finalization unless checks pass.
 - `scripts/adapt_codex_subagent_event.py`: converts a Codex subagent raw completion export into a runner runtime event and archives the raw event.
 - `scripts/run_host_subagents.py`: calls a host-provided subagent command for each expert role, adapts raw events, records agent outputs, and can strict-finalize signed runs.
+- `scripts/cli_subagent_command.py`: wraps a stdin/stdout model CLI as a host subagent command that writes signed raw events and agent output files.
 - `scripts/workflow_runtime.py`: shared hash, event-log, and state helpers for Runner evidence.
 - `scripts/extract_author_voice.py`: extracts a source-local voice seed so author style comes from the current source, not examples or prior users.
 - `scripts/check_workflow_output.py`: validates that all required packet files are filled before delivery.

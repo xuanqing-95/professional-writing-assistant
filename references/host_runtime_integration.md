@@ -66,6 +66,27 @@ PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
     --finalize
 ```
 
+If the host exposes a CLI that reads the task prompt from stdin and prints the expert answer to stdout, use `scripts/cli_subagent_command.py` as the host command adapter:
+
+```bash
+PWA_RUNTIME_SIGNING_KEY=<host-signing-key> \
+  python3 scripts/run_host_subagents.py <workflow-dir> \
+    --command "python3 scripts/cli_subagent_command.py --role {role} --task '{task}' --output '{output}' --raw-event '{raw_event}' --command '<model-cli-command>' --sign" \
+    --runtime-provider cli-subagent \
+    --require-signature \
+    --finalize
+```
+
+The CLI adapter:
+
+1. Reads the generated agent task file.
+2. Sends a role-specific prompt to `<model-cli-command>` through stdin.
+3. Captures stdout as the raw expert answer.
+4. Writes `agent_outputs/<role>.md` with `mode: subagent`.
+5. Writes a signed raw runtime event JSON for the supervisor to verify and record.
+
+This adapter proves that a separate CLI process ran and produced stdout. Whether that CLI process is a truly isolated subagent depends on the command you provide.
+
 With `--require-signature`, the supervisor:
 
 1. Rejects unsigned raw events.
